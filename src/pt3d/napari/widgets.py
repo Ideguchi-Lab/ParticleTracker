@@ -248,7 +248,6 @@ class DetectionWidget(QWidget):
                     name="Detections",
                     size=5,
                     face_color="yellow",
-                    edge_color="yellow",
                 )
         except Exception as e:
             logger.exception(f"Detection failed: {e}")

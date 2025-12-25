@@ -94,7 +94,6 @@ def main() -> None:
             name="Detections",
             size=5,
             face_color="yellow",
-            edge_color="yellow",
             scale=scale,
         )
 
