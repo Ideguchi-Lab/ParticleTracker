@@ -1,0 +1,82 @@
+# Sample configuration file for pt3d pipeline
+# Copy and modify this file for your own data
+
+input:
+  # Path to input data (zarr, TIFF, or npy)
+  path: ./data/sample.zarr
+
+  # Axis order of input data
+  axis_order: tzyx
+
+  # Physical voxel dimensions in micrometers (REQUIRED)
+  voxel_size:
+    z_um: 0.8   # Z spacing (often larger due to optical sectioning)
+    y_um: 0.2   # Y pixel size
+    x_um: 0.2   # X pixel size
+
+detection:
+  # Feature diameter in pixels (dz, dy, dx)
+  # MUST be odd integers
+  # Approximate the full width at half maximum of particles
+  diameter: [5, 9, 9]
+
+  # Minimum integrated brightness for a particle
+  # Increase to reject dim particles and noise
+  minmass: 100.0
+
+  # Threshold for bandpass filter (optional)
+  # Set to null for automatic
+  threshold: null
+
+  # Minimum separation between particles (optional)
+  # Default is diameter + 1
+  separation: null
+
+  # Set to true for dark particles on light background
+  invert: false
+
+  # Use trackpy's built-in bandpass preprocessing
+  preprocess: true
+
+tracking:
+  # Maximum displacement per frame in micrometers
+  # This is the most important tracking parameter
+  # Should be larger than typical particle movement but smaller than
+  # the distance to the nearest neighbor
+  search_range_um: 2.0
+
+  # Number of frames a particle can disappear and reappear
+  # Useful for handling temporary detection failures
+  memory: 2
+
+  # Adaptive search parameters (optional)
+  # Use when particles are densely packed
+  # adaptive_stop: 10.0
+  # adaptive_step: 0.9
+
+postprocess:
+  # Minimum track length in frames
+  # Remove short "stub" tracks that are likely noise
+  min_track_length: 5
+
+  # Maximum velocity for outlier removal (optional)
+  # Remove track points with unrealistic velocities
+  # max_velocity_um: 10.0
+
+export:
+  # Output directory for results
+  output_dir: ./results
+
+  # Output format: parquet (recommended) or csv
+  format: parquet
+
+  # Allow overwriting existing files
+  overwrite: false
+
+# napari visualization settings (optional)
+napari:
+  image_name: Volume
+  points_name: Detections
+  tracks_name: Tracks
+  # Subset of frames to display (optional)
+  # frame_range: [0, 100]
