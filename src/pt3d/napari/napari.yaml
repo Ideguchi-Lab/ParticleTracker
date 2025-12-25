@@ -1,0 +1,11 @@
+name: pt3d
+display_name: 3D Particle Tracker
+contributions:
+  commands:
+    - id: pt3d.main_widget
+      title: 3D Particle Tracker
+      python_name: pt3d.napari.widgets:MainWidget
+
+  widgets:
+    - command: pt3d.main_widget
+      display_name: 3D Particle Tracker
