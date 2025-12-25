@@ -1,0 +1,102 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pt3d"
+version = "0.1.0"
+description = "3D+t particle tracking library with trackpy and napari"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: napari",
+    "Topic :: Scientific/Engineering :: Image Processing",
+]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "trackpy>=0.6",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "tifffile>=2023.0",
+    "zarr>=2.16",
+    "scikit-image>=0.21",
+    "pyarrow>=14.0",
+]
+
+[project.optional-dependencies]
+napari = [
+    "napari[all]>=0.4.18",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.5",
+    "pyright>=1.1",
+]
+all = [
+    "pt3d[napari,dev]",
+]
+
+[project.entry-points."napari.manifest"]
+pt3d = "pt3d.napari:napari.yaml"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pt3d"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src", "tests", "examples"]
+
+[tool.ruff.lint]
+preview = true
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # Pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "RUF",    # Ruff-specific rules
+]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["pt3d"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S101"]
+"examples/*.py" = ["T201"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = ["slow: mark test as slow"]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+files = ["src/pt3d", "tests", "examples"]
+
+[tool.pyright]
+include = ["src/pt3d", "tests", "examples"]
+pythonPath = "."
+typeCheckingMode = "basic"
