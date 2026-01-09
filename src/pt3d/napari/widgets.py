@@ -8,16 +8,15 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, Signal
 from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QProgressBar,
     QPushButton,
     QSpinBox,
     QTextEdit,
@@ -27,6 +26,10 @@ from qtpy.QtWidgets import (
 
 if TYPE_CHECKING:
     import napari
+    import numpy as np
+    import pandas as pd
+
+    from pt3d.config import VoxelSize
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +124,7 @@ class DiameterWidget(QWidget):
 class DetectionWidget(QWidget):
     """Widget for detection parameter adjustment."""
 
-    def __init__(self, napari_viewer: "napari.Viewer", parent: QWidget | None = None) -> None:
+    def __init__(self, napari_viewer: napari.Viewer, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.viewer = napari_viewer
         self._setup_ui()
@@ -256,7 +259,10 @@ class DetectionWidget(QWidget):
 class TrackingWidget(QWidget):
     """Widget for tracking parameter adjustment."""
 
-    def __init__(self, napari_viewer: "napari.Viewer", parent: QWidget | None = None) -> None:
+    # Signal emitted when tracking completes: (tracks_df, voxel_size)
+    tracking_completed = Signal(object, object)
+
+    def __init__(self, napari_viewer: napari.Viewer, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.viewer = napari_viewer
         self._setup_ui()
@@ -313,7 +319,7 @@ class TrackingWidget(QWidget):
 
     def _run_tracking(self) -> None:
         """Execute tracking on current detections."""
-        from pt3d.config import PostprocessConfig, TrackingConfig, VoxelSize
+        from pt3d.config import TrackingConfig, VoxelSize
         from pt3d.napari.layers import to_napari_tracks
         from pt3d.postprocess import filter_stubs
         from pt3d.track import link_detections
@@ -360,14 +366,319 @@ class TrackingWidget(QWidget):
                     tracks_data,
                     name="Tracks",
                 )
+
+                # Emit signal with tracks and voxel size for visualization
+                self.tracking_completed.emit(tracks, voxel_size)
         except Exception as e:
             logger.exception(f"Tracking failed: {e}")
 
 
-class MainWidget(QWidget):
-    """Main widget combining detection, tracking, and export."""
+class TrackVisualizationWidget(QWidget):
+    """Widget for track visualization settings and statistics display."""
 
-    def __init__(self, napari_viewer: "napari.Viewer") -> None:
+    def __init__(self, napari_viewer: napari.Viewer, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.viewer = napari_viewer
+        self._current_tracks: pd.DataFrame | None = None
+        self._current_stats: pd.DataFrame | None = None
+        self._voxel_size: VoxelSize | None = None
+        self._original_image_data: np.ndarray | None = None
+        self._setup_ui()
+
+    def _setup_ui(self) -> None:
+
+        layout = QVBoxLayout()
+
+        # Display mode section
+        display_group = QGroupBox("Display Mode")
+        display_layout = QVBoxLayout()
+
+        self.display_mode_combo = QComboBox()
+        self.display_mode_combo.addItems(["2D Slice + Time Slider", "XY Max Projection Overview"])
+        self.display_mode_combo.currentIndexChanged.connect(self._on_display_mode_changed)
+        display_layout.addWidget(self.display_mode_combo)
+
+        display_group.setLayout(display_layout)
+        layout.addWidget(display_group)
+
+        # Track coloring section
+        color_group = QGroupBox("Track Coloring")
+        color_layout = QVBoxLayout()
+
+        color_by_layout = QHBoxLayout()
+        color_by_layout.addWidget(QLabel("Color by:"))
+        self.color_by_combo = QComboBox()
+        self.color_by_combo.addItems(["Track ID", "Time (frame)", "Track Length"])
+        self.color_by_combo.currentIndexChanged.connect(self._update_track_colors)
+        color_by_layout.addWidget(self.color_by_combo)
+        color_layout.addLayout(color_by_layout)
+
+        cmap_layout = QHBoxLayout()
+        cmap_layout.addWidget(QLabel("Colormap:"))
+        self.colormap_combo = QComboBox()
+        self.colormap_combo.addItems(["turbo", "viridis", "plasma", "magma", "hsv"])
+        self.colormap_combo.currentIndexChanged.connect(self._update_track_colors)
+        cmap_layout.addWidget(self.colormap_combo)
+        color_layout.addLayout(cmap_layout)
+
+        color_group.setLayout(color_layout)
+        layout.addWidget(color_group)
+
+        # Track selection section
+        select_group = QGroupBox("Track Selection")
+        select_layout = QVBoxLayout()
+
+        track_id_layout = QHBoxLayout()
+        track_id_layout.addWidget(QLabel("Highlight Track:"))
+        self.track_id_spin = QSpinBox()
+        self.track_id_spin.setRange(-1, 10000)
+        self.track_id_spin.setValue(-1)
+        self.track_id_spin.setSpecialValueText("All")
+        self.track_id_spin.valueChanged.connect(self._highlight_track)
+        track_id_layout.addWidget(self.track_id_spin)
+        select_layout.addLayout(track_id_layout)
+
+        self.show_others_check = QCheckBox("Show other tracks (dimmed)")
+        self.show_others_check.setChecked(True)
+        self.show_others_check.stateChanged.connect(self._highlight_track)
+        select_layout.addWidget(self.show_others_check)
+
+        select_group.setLayout(select_layout)
+        layout.addWidget(select_group)
+
+        # Statistics display section
+        stats_group = QGroupBox("Track Statistics")
+        stats_layout = QVBoxLayout()
+
+        self.stats_text = QTextEdit()
+        self.stats_text.setReadOnly(True)
+        self.stats_text.setMaximumHeight(120)
+        stats_layout.addWidget(self.stats_text)
+
+        self.export_stats_btn = QPushButton("Export Statistics...")
+        self.export_stats_btn.clicked.connect(self._export_statistics)
+        stats_layout.addWidget(self.export_stats_btn)
+
+        stats_group.setLayout(stats_layout)
+        layout.addWidget(stats_group)
+
+        # Apply button
+        self.apply_button = QPushButton("Update Visualization")
+        self.apply_button.clicked.connect(self._apply_visualization)
+        layout.addWidget(self.apply_button)
+
+        layout.addStretch()
+        self.setLayout(layout)
+
+    def set_tracks(self, tracks: pd.DataFrame, voxel_size: VoxelSize) -> None:
+        """Set current tracks and compute statistics."""
+
+        from pt3d.postprocess import compute_track_stats
+
+        self._current_tracks = tracks
+        self._voxel_size = voxel_size
+
+        if len(tracks) > 0:
+            self._current_stats = compute_track_stats(tracks, voxel_size)
+            self._update_stats_display()
+
+            # Update track ID spinner range
+            max_id = int(tracks["particle"].max())
+            self.track_id_spin.setMaximum(max_id)
+
+        # Store original image data for projection
+        for layer in self.viewer.layers:
+            if hasattr(layer, "data") and hasattr(layer.data, "ndim"):
+                if layer.data.ndim == 4:
+                    self._original_image_data = layer.data
+                    break
+
+    def _update_stats_display(self) -> None:
+        """Update statistics text display."""
+        if self._current_stats is None or len(self._current_stats) == 0:
+            self.stats_text.setText("No tracks available")
+            return
+
+        stats = self._current_stats
+        summary = (
+            f"Total Tracks: {len(stats)}\n"
+            f"Mean Track Length: {stats['length'].mean():.1f} frames\n"
+            f"Max Track Length: {stats['length'].max()} frames\n"
+            f"Mean Velocity: {stats['mean_velocity_um'].mean():.2f} µm/frame\n"
+            f"Max Velocity: {stats['max_velocity_um'].max():.2f} µm/frame"
+        )
+        self.stats_text.setText(summary)
+
+    def _on_display_mode_changed(self) -> None:
+        """Handle display mode change."""
+        mode = self.display_mode_combo.currentIndex()
+        if mode == 0:
+            self._show_slice_mode()
+        else:
+            self._show_max_projection_mode()
+
+    def _show_slice_mode(self) -> None:
+        """Display 2D slice + time slider mode."""
+        # Remove max projection layer if exists
+        for layer in list(self.viewer.layers):
+            if layer.name == "XY Max Projection" or layer.name == "Tracks (Max Proj)":
+                self.viewer.layers.remove(layer)
+
+        # Make original layers visible
+        for layer in self.viewer.layers:
+            if layer.name in ["Particles", "Tracks"]:
+                layer.visible = True
+
+    def _show_max_projection_mode(self) -> None:
+        """Display XY max projection overview."""
+
+        from pt3d.napari.layers import (
+            compute_xy_max_projection,
+            to_napari_tracks,
+            tracks_visualization_properties,
+        )
+
+        if self._original_image_data is None or self._voxel_size is None:
+            logger.warning("No image data available for projection")
+            return
+
+        # Compute max projection
+        proj_image, proj_tracks = compute_xy_max_projection(
+            self._original_image_data, self._current_tracks
+        )
+
+        # Hide original layers
+        for layer in self.viewer.layers:
+            if layer.name in ["Particles", "Tracks"]:
+                layer.visible = False
+
+        # Add or update max projection layer
+        proj_scale = (1.0, self._voxel_size.y_um, self._voxel_size.x_um)
+
+        existing_proj = None
+        for layer in self.viewer.layers:
+            if layer.name == "XY Max Projection":
+                existing_proj = layer
+                break
+
+        if existing_proj is not None:
+            existing_proj.data = proj_image
+        else:
+            self.viewer.add_image(
+                proj_image,
+                name="XY Max Projection",
+                scale=proj_scale,
+                colormap="gray",
+            )
+
+        # Add projected tracks
+        if proj_tracks is not None and len(proj_tracks) > 0:
+            # Remove existing projected tracks
+            for layer in list(self.viewer.layers):
+                if layer.name == "Tracks (Max Proj)":
+                    self.viewer.layers.remove(layer)
+
+            tracks_data = to_napari_tracks(proj_tracks)
+            properties, color_by = tracks_visualization_properties(
+                proj_tracks, self._current_stats, self._get_color_by_key()
+            )
+
+            # For 3D (T, Y, X), use 3D scale
+            track_scale = (1.0, self._voxel_size.y_um, self._voxel_size.x_um)
+            self.viewer.add_tracks(
+                tracks_data,
+                name="Tracks (Max Proj)",
+                scale=track_scale,
+                properties=properties,
+                color_by=color_by,
+                colormap=self.colormap_combo.currentText(),
+            )
+
+    def _get_color_by_key(self) -> str:
+        """Get color_by key from combo box selection."""
+        index = self.color_by_combo.currentIndex()
+        mapping = {0: "track_id", 1: "time", 2: "length"}
+        return mapping.get(index, "track_id")
+
+    def _update_track_colors(self) -> None:
+        """Update track layer coloring based on selected property."""
+        from pt3d.napari.layers import tracks_visualization_properties
+
+        if self._current_tracks is None or len(self._current_tracks) == 0:
+            return
+
+        color_by = self._get_color_by_key()
+        colormap = self.colormap_combo.currentText()
+
+        # Update Tracks layer
+        for layer in self.viewer.layers:
+            if layer.name == "Tracks" and hasattr(layer, "color_by"):
+                properties, actual_color_by = tracks_visualization_properties(
+                    self._current_tracks, self._current_stats, color_by
+                )
+                layer.properties = properties
+                layer.color_by = actual_color_by
+                layer.colormap = colormap
+                break
+
+    def _highlight_track(self) -> None:
+        """Highlight selected track ID."""
+        if self._current_tracks is None:
+            return
+
+        track_id = self.track_id_spin.value()
+        show_others = self.show_others_check.isChecked()
+
+        # Find Tracks layer
+        tracks_layer = None
+        for layer in self.viewer.layers:
+            if layer.name == "Tracks":
+                tracks_layer = layer
+                break
+
+        if tracks_layer is None:
+            return
+
+        if track_id == -1:
+            # Show all tracks
+            tracks_layer.visible = True
+        else:
+            # Currently napari Tracks layer doesn't support filtering directly,
+            # so we log the info for now
+            logger.info(f"Highlighting track {track_id} (show others: {show_others})")
+
+    def _export_statistics(self) -> None:
+        """Export track statistics to file."""
+        if self._current_stats is None or len(self._current_stats) == 0:
+            logger.warning("No statistics to export")
+            return
+
+        filepath, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Statistics",
+            "track_statistics.csv",
+            "CSV Files (*.csv);;Parquet Files (*.parquet)",
+        )
+
+        if filepath:
+            if filepath.endswith(".parquet"):
+                self._current_stats.to_parquet(filepath)
+            else:
+                if not filepath.endswith(".csv"):
+                    filepath += ".csv"
+                self._current_stats.to_csv(filepath, index=False)
+            logger.info(f"Exported statistics to {filepath}")
+
+    def _apply_visualization(self) -> None:
+        """Apply current visualization settings."""
+        self._on_display_mode_changed()
+        self._update_track_colors()
+
+
+class MainWidget(QWidget):
+    """Main widget combining detection, tracking, visualization, and export."""
+
+    def __init__(self, napari_viewer: napari.Viewer) -> None:
         super().__init__()
         self.viewer = napari_viewer
         self._setup_ui()
@@ -397,9 +708,27 @@ class MainWidget(QWidget):
         track_group.setLayout(track_layout)
         layout.addWidget(track_group)
 
+        # Visualization section (NEW)
+        vis_group = QGroupBox("Visualization")
+        self.visualization_widget = TrackVisualizationWidget(self.viewer)
+        vis_layout = QVBoxLayout()
+        vis_layout.addWidget(self.visualization_widget)
+        vis_group.setLayout(vis_layout)
+        layout.addWidget(vis_group)
+
+        # Connect tracking completion to visualization
+        self.tracking_widget.tracking_completed.connect(self._on_tracking_completed)
+
         # Status
         self.status_label = QLabel("Ready")
         layout.addWidget(self.status_label)
 
         layout.addStretch()
         self.setLayout(layout)
+
+    def _on_tracking_completed(
+        self, tracks: pd.DataFrame, voxel_size: VoxelSize
+    ) -> None:
+        """Handle tracking completion to update visualization widget."""
+        self.visualization_widget.set_tracks(tracks, voxel_size)
+        self.status_label.setText(f"Tracking complete: {tracks['particle'].nunique()} tracks")

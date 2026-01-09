@@ -176,3 +176,133 @@ def tracks_properties_from_tracks(
             properties[col] = sorted_tracks[col].values
 
     return properties
+
+
+def tracks_visualization_properties(
+    tracks: pd.DataFrame,
+    track_stats: pd.DataFrame | None = None,
+    color_by: str = "track_id",
+) -> tuple[dict[str, NDArray], str]:
+    """Generate properties for napari Tracks layer with color mapping.
+
+    Parameters
+    ----------
+    tracks : pd.DataFrame
+        Tracks DataFrame with particle, frame, z, y, x columns
+    track_stats : pd.DataFrame | None
+        Optional track statistics from compute_track_stats()
+    color_by : str
+        Property to use for coloring: "track_id", "time", "length"
+
+    Returns
+    -------
+    tuple[dict[str, NDArray], str]
+        (properties dict, color_by key for napari)
+    """
+    if len(tracks) == 0:
+        return {}, "track_id"
+
+    # Sort to match tracks array order
+    sorted_tracks = tracks.sort_values(["particle", "frame"]).copy()
+
+    properties: dict[str, NDArray] = {}
+
+    # Always include track_id for coloring
+    properties["track_id"] = sorted_tracks["particle"].values.astype(np.float64)
+
+    # Time (frame) for coloring
+    properties["time"] = sorted_tracks["frame"].values.astype(np.float64)
+
+    # If track_stats provided, merge statistics
+    if track_stats is not None and len(track_stats) > 0:
+        merged = merge_track_stats_to_tracks(sorted_tracks, track_stats)
+        if "length" in merged.columns:
+            properties["length"] = merged["length"].values.astype(np.float64)
+        if "mean_velocity_um" in merged.columns:
+            properties["velocity"] = merged["mean_velocity_um"].values.astype(np.float64)
+        if "total_displacement_um" in merged.columns:
+            properties["displacement"] = merged["total_displacement_um"].values.astype(
+                np.float64
+            )
+
+    # Map color_by to actual property name
+    color_by_map = {
+        "track_id": "track_id",
+        "time": "time",
+        "length": "length",
+        "velocity": "velocity",
+        "displacement": "displacement",
+    }
+    actual_color_by = color_by_map.get(color_by, "track_id")
+
+    # Fallback if requested property not available
+    if actual_color_by not in properties:
+        actual_color_by = "track_id"
+
+    return properties, actual_color_by
+
+
+def merge_track_stats_to_tracks(
+    tracks: pd.DataFrame,
+    track_stats: pd.DataFrame,
+) -> pd.DataFrame:
+    """Merge per-track statistics into tracks DataFrame.
+
+    Parameters
+    ----------
+    tracks : pd.DataFrame
+        Tracks DataFrame with particle column
+    track_stats : pd.DataFrame
+        Track statistics with particle, length, mean_velocity_um, etc.
+
+    Returns
+    -------
+    pd.DataFrame
+        Tracks with statistics columns added
+    """
+    if len(tracks) == 0 or len(track_stats) == 0:
+        return tracks
+
+    # Select columns to merge (exclude particle as it's the key)
+    stat_cols = [
+        col for col in track_stats.columns if col != "particle" and col not in tracks.columns
+    ]
+    if not stat_cols:
+        return tracks
+
+    merge_cols = ["particle", *stat_cols]
+    return tracks.merge(track_stats[merge_cols], on="particle", how="left")
+
+
+def compute_xy_max_projection(
+    image_data: NDArray[np.floating],
+    tracks: pd.DataFrame | None = None,
+) -> tuple[NDArray[np.floating], pd.DataFrame | None]:
+    """Compute XY maximum intensity projection along Z axis.
+
+    Parameters
+    ----------
+    image_data : NDArray
+        4D image data (T, Z, Y, X)
+    tracks : pd.DataFrame | None
+        Optional tracks to project (z coordinate set to 0)
+
+    Returns
+    -------
+    tuple[NDArray, pd.DataFrame | None]
+        Projected image (T, Y, X) and optionally projected tracks
+    """
+    if image_data.ndim != 4:
+        raise ValueError(f"Expected 4D data (T, Z, Y, X), got {image_data.ndim}D")
+
+    # Max projection along Z axis (axis=1)
+    projected = np.max(image_data, axis=1)
+
+    # Project tracks if provided
+    projected_tracks = None
+    if tracks is not None and len(tracks) > 0:
+        projected_tracks = tracks.copy()
+        # Set z to 0 for 2D display
+        projected_tracks["z"] = 0.0
+
+    return projected, projected_tracks

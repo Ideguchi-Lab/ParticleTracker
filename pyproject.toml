@@ -76,6 +76,9 @@ select = [
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
+    "RUF001", # ambiguous unicode character (µ is standard in scientific notation)
+    "RUF002", # ambiguous unicode in docstring
+    "SIM102", # nested if statements (sometimes clearer for complex conditions)
 ]
 
 [tool.ruff.lint.isort]
