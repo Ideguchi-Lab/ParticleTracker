@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class MSDConfig(BaseModel):
@@ -32,6 +32,21 @@ class MSDConfig(BaseModel):
         default=(0.1, 0.5),
         description="Fitting range as (start, end) fraction of max_lag",
     )
+
+    @field_validator("fit_range_fraction")
+    @classmethod
+    def validate_fit_range_fraction(
+        cls,
+        value: tuple[float, float],
+    ) -> tuple[float, float]:
+        start, end = value
+        if not (0.0 <= start < end <= 1.0):
+            msg = (
+                "fit_range_fraction must satisfy 0.0 <= start < end <= 1.0, "
+                f"got (start={start}, end={end})"
+            )
+            raise ValueError(msg)
+        return value
 
 
 class DiffusionAnalysisConfig(BaseModel):

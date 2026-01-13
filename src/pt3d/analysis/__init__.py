@@ -11,13 +11,14 @@ Examples
 >>> from pt3d.analysis import plot_tracks_3d, plot_diffusion_histograms
 >>>
 >>> # Run tracking pipeline
->>> result = run_pipeline(data, config)
+>>> pipeline_config = PipelineConfig(...)  # configure as needed
+>>> result = run_pipeline(data, pipeline_config)
 >>>
 >>> # Analyze diffusion
 >>> analysis_config = DiffusionAnalysisConfig(dt=0.1, min_track_length=10)
 >>> analysis = analyze_diffusion(result, analysis_config)
 >>>
->>> print(f"Mean D = {analysis.mean_D:.4f} um^2/s")
+>>> print(f"Mean D = {analysis.mean_d:.4f} um^2/s")
 >>> print(f"Mean alpha = {analysis.mean_alpha:.2f}")
 >>>
 >>> # Visualize

@@ -75,7 +75,7 @@ def plot_tracks_3d(
         color_values = [result.msd_per_particle[pid].alpha for pid in particle_ids]
         color_label = "α"
     else:  # particle
-        color_values = list(range(len(particle_ids)))
+        color_values = particle_ids
         color_label = "Particle ID"
 
     # Normalize colors
@@ -90,33 +90,46 @@ def plot_tracks_3d(
         positions = result.positions_um[pid]
         color = cmap(norm(c_val))
 
-        # Filter out NaN values for plotting
         valid_mask = ~np.any(np.isnan(positions), axis=1)
-        valid_positions = positions[valid_mask]
-
-        if len(valid_positions) < 2:
+        if not np.any(valid_mask):
             continue
 
-        # Extract coordinates (positions are in [z, y, x] order)
-        z = valid_positions[:, 0]
-        y = valid_positions[:, 1]
-        x = valid_positions[:, 2]
+        # Split into contiguous valid segments so gaps don't connect lines
+        mask_int = valid_mask.astype(np.int8)
+        changes = np.diff(mask_int)
+        starts = np.where(changes == 1)[0] + 1
+        ends = np.where(changes == -1)[0] + 1
+        if valid_mask[0]:
+            starts = np.concatenate(([0], starts))
+        if valid_mask[-1]:
+            ends = np.concatenate((ends, [len(valid_mask)]))
 
-        # Plot trajectory line
-        ax.plot(
-            x,
-            y,
-            z,
-            color=color,
-            linewidth=config.line_width,
-            alpha=config.alpha,
-        )
+        for start_idx, end_idx in zip(starts, ends, strict=True):
+            segment = positions[start_idx:end_idx]
+            if len(segment) < 2:
+                continue
 
-        # Plot start point
+            # Extract coordinates (positions are in [z, y, x] order)
+            z = segment[:, 0]
+            y = segment[:, 1]
+            x = segment[:, 2]
+
+            ax.plot(
+                x,
+                y,
+                z,
+                color=color,
+                linewidth=config.line_width,
+                alpha=config.alpha,
+            )
+
+        # Plot start point (first valid position)
+        first_valid = int(np.flatnonzero(valid_mask)[0])
+        z0, y0, x0 = positions[first_valid]
         ax.scatter(
-            [x[0]],
-            [y[0]],
-            [z[0]],
+            [x0],
+            [y0],
+            [z0],
             color=color,
             s=config.point_size,
             marker="o",
@@ -185,6 +198,8 @@ def plot_diffusion_histograms(
         # Use log bins
         log_min = np.floor(np.log10(d_positive.min()))
         log_max = np.ceil(np.log10(d_positive.max()))
+        if log_min == log_max:
+            log_max = log_min + 1  # Ensure increasing bin edges
         bins = np.logspace(log_min, log_max, config.n_bins + 1)
         ax_d.hist(d_positive, bins=bins, edgecolor="black", alpha=0.7)
         ax_d.set_xscale("log")
@@ -365,7 +380,7 @@ def create_analysis_report(
     - 3D trajectory plot (colored by D)
     - D and alpha histograms
     - MSD log-log plot
-    - Summary statistics text
+    - Summary statistics annotations
 
     Parameters
     ----------
@@ -404,6 +419,8 @@ def create_analysis_report(
         if len(d_positive) > 0:
             log_min = np.floor(np.log10(d_positive.min()))
             log_max = np.ceil(np.log10(d_positive.max()))
+            if log_min == log_max:
+                log_max = log_min + 1  # Ensure increasing bin edges
             bins = np.logspace(log_min, log_max, 21)
             ax_d.hist(d_positive, bins=bins, edgecolor="black", alpha=0.7)
             ax_d.set_xscale("log")

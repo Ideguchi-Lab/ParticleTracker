@@ -194,12 +194,11 @@ def tracks_to_positions(
         # Create position array with NaN for gaps
         positions = np.full((n_frames, 3), np.nan, dtype=np.float64)
 
-        # Fill in known positions
-        for _, row in group.iterrows():
-            idx = int(row["frame"] - frame_min)
-            positions[idx, 0] = row["z"] * voxel_array[0]
-            positions[idx, 1] = row["y"] * voxel_array[1]
-            positions[idx, 2] = row["x"] * voxel_array[2]
+        # Fill in known positions (vectorized)
+        frames = group["frame"].to_numpy(dtype=np.int64)
+        idx = frames - frame_min
+        coords = group[["z", "y", "x"]].to_numpy(dtype=np.float64) * voxel_array
+        positions[idx] = coords
 
         result[int(particle_id)] = positions
 
