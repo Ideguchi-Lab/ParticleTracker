@@ -25,24 +25,21 @@ from pt3d.synth.generators import (
 )
 
 __all__ = [
-    # Original generators
-    "generate_sphere_volume",
-    "generate_circle_slice",
-    "generate_gaussian_particle",
-    "generate_multiple_particles",
-    "generate_moving_particles",
-    "save_synthetic_data",
-    # Brownian motion
-    "generate_brownian_particles",
-    "generate_brownian_particles_from_config",
-    "generate_fbm_trajectory",
-    "generate_fbm_trajectory_3d",
-    "apply_boundary_conditions",
-    "compute_msd",
-    "fit_diffusion_exponent",
-    # Config classes
     "BrownianSimulationConfig",
     "DiffusionConfig",
     "ParticlePopulationConfig",
     "ParticleTypeConfig",
+    "apply_boundary_conditions",
+    "compute_msd",
+    "fit_diffusion_exponent",
+    "generate_brownian_particles",
+    "generate_brownian_particles_from_config",
+    "generate_circle_slice",
+    "generate_fbm_trajectory",
+    "generate_fbm_trajectory_3d",
+    "generate_gaussian_particle",
+    "generate_moving_particles",
+    "generate_multiple_particles",
+    "generate_sphere_volume",
+    "save_synthetic_data",
 ]

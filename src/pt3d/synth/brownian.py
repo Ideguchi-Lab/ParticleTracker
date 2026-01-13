@@ -190,7 +190,7 @@ def generate_fbm_trajectory_3d(
         rng = np.random.default_rng(seed)
 
     # Handle isotropic diffusion
-    if isinstance(diffusion_coefficients, (int, float)):
+    if isinstance(diffusion_coefficients, int | float):
         diffusion_coefficients = (
             float(diffusion_coefficients),
             float(diffusion_coefficients),
@@ -501,7 +501,7 @@ def generate_brownian_particles(
         voxel_array = np.array([1.0, 1.0, 1.0], dtype=np.float64)
 
     # Handle isotropic diffusion coefficient
-    if isinstance(diffusion_coefficient, (int, float)):
+    if isinstance(diffusion_coefficient, int | float):
         d_tuple = (
             float(diffusion_coefficient),
             float(diffusion_coefficient),
@@ -640,7 +640,7 @@ def generate_brownian_particles_from_config(
         # Handle isotropic diffusion
         d_tuple = (
             (float(d_coeff), float(d_coeff), float(d_coeff))
-            if isinstance(d_coeff, (int, float))
+            if isinstance(d_coeff, int | float)
             else d_coeff
         )
 
