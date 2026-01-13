@@ -1,0 +1,62 @@
+# Brownian Motion Simulation Configuration
+#
+# This is a sample configuration file for generating synthetic particle data
+# with various diffusion behaviors using Fractional Brownian Motion (FBM).
+#
+# Diffusion types:
+#   - Normal diffusion (H=0.5): MSD ~ t (free diffusion)
+#   - Subdiffusion (H<0.5): MSD ~ t^(2H) (confined/crowded environment)
+#   - Superdiffusion (H>0.5): MSD ~ t^(2H) (directed/active transport)
+
+# Volume shape (t, z, y, x) in frames/pixels
+shape: [100, 32, 64, 64]
+
+# Physical voxel dimensions in micrometers
+voxel_size:
+  z_um: 1.0
+  y_um: 0.1
+  x_um: 0.1
+
+# Particle populations (can define multiple populations with different properties)
+populations:
+  # Population 1: Normal diffusion (free diffusion)
+  - n_particles: 5
+    particle_type:
+      shape: gaussian
+      sigma: [2.0, 3.0, 3.0]  # (sz, sy, sx) in pixels
+      intensity: 1.0
+    diffusion:
+      diffusion_coefficient: 0.5  # D in um^2/s
+      hurst_exponent: 0.5  # H=0.5 -> Normal diffusion (alpha=1.0)
+      dt: 0.1  # Time step in seconds (100ms per frame)
+
+  # Population 2: Subdiffusion (confined/crowded motion)
+  - n_particles: 5
+    particle_type:
+      shape: gaussian
+      sigma: [2.0, 3.0, 3.0]
+      intensity: 0.8
+    diffusion:
+      diffusion_coefficient: 0.3
+      hurst_exponent: 0.3  # H=0.3 -> Subdiffusion (alpha=0.6)
+      dt: 0.1
+
+  # Population 3: Superdiffusion (directed/active motion)
+  - n_particles: 3
+    particle_type:
+      shape: gaussian
+      sigma: [2.0, 3.0, 3.0]
+      intensity: 1.2
+    diffusion:
+      diffusion_coefficient: 0.4
+      hurst_exponent: 0.7  # H=0.7 -> Superdiffusion (alpha=1.4)
+      dt: 0.1
+
+# Boundary condition: reflective, periodic, or absorbing
+boundary_mode: reflective
+
+# Gaussian noise level (standard deviation)
+noise_level: 0.05
+
+# Random seed for reproducibility (set to null for random)
+seed: 42
