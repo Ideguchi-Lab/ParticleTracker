@@ -82,11 +82,11 @@ def main():
         input=InputConfig(voxel_size=voxel_size),
         detection=DetectionConfig(
             diameter=(5, 9, 9),
-            minmass=0.1,
+            minmass=0.5,  # Increased to reduce false detections
             threshold=None,
         ),
         tracking=TrackingConfig(
-            search_range_um=2.0,
+            search_range_um=1.0,  # Reduced search range for better performance
             memory=2,
         ),
         postprocess=PostprocessConfig(
