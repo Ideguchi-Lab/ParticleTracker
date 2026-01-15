@@ -7,10 +7,12 @@ with practical advice on tuning them for your data.
 
 - [Overview](#overview)
 - [Physical Parameters](#physical-parameters)
+- [Input Parameters](#input-parameters)
 - [Detection Parameters](#detection-parameters)
 - [Tracking Parameters](#tracking-parameters)
 - [Postprocessing Parameters](#postprocessing-parameters)
 - [Export Parameters](#export-parameters)
+- [Napari Parameters](#napari-parameters)
 - [Diffusion Analysis Parameters](#diffusion-analysis-parameters)
 - [Parameter Tuning Workflow](#parameter-tuning-workflow)
 - [Common Scenarios](#common-scenarios)
@@ -96,6 +98,56 @@ print(voxel_size.anisotropy_ratio)  # 4.0
 ```
 
 A ratio > 1 indicates Z is coarser than XY (typical in most microscopy).
+
+---
+
+## Input Parameters
+
+### InputConfig
+
+Configuration for input data loading and interpretation.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `path` | Path \| None | None | Path to input file (zarr, TIFF, or npy) |
+| `axis_order` | str | "tzyx" | Axis order of input data |
+| `dtype` | str \| None | None | Optional dtype to convert input data to |
+| `voxel_size` | VoxelSize | **Required** | Physical voxel dimensions |
+
+### axis_order
+
+Specifies how your data dimensions are organized. Default is `"tzyx"` (time, z, y, x).
+
+**Supported axes:**
+- `t` - Time dimension
+- `z` - Z (depth) dimension
+- `y` - Y (height) dimension
+- `x` - X (width) dimension
+
+**Examples:**
+```python
+# Standard 4D time series
+input_config = InputConfig(axis_order="tzyx", voxel_size=voxel_size)
+
+# Single 3D volume (no time)
+input_config = InputConfig(axis_order="zyx", voxel_size=voxel_size)
+
+# Data with different axis order
+input_config = InputConfig(axis_order="zyxt", voxel_size=voxel_size)
+```
+
+### dtype
+
+Optional data type conversion. Useful when you need specific precision:
+
+```python
+# Convert to float32 for memory efficiency
+input_config = InputConfig(
+    path="data.zarr",
+    dtype="float32",
+    voxel_size=voxel_size,
+)
+```
 
 ---
 
@@ -341,6 +393,50 @@ postprocess = PostprocessConfig(max_velocity_um=10.0)
 
 ---
 
+## Napari Parameters
+
+### NapariConfig
+
+Configuration for napari visualization.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `image_name` | str | "Volume" | Name for the image layer |
+| `points_name` | str | "Detections" | Name for the detection points layer |
+| `tracks_name` | str | "Tracks" | Name for the tracks layer |
+| `frame_range` | tuple[int, int] \| None | None | Optional subset of frames to display |
+
+### frame_range
+
+Use this to display only a subset of frames for faster visualization:
+
+```python
+napari_config = NapariConfig(
+    frame_range=(0, 100),  # Display frames 0-99 only
+)
+```
+
+### Visualization Helpers
+
+pt3d provides helper functions for napari visualization in `pt3d.napari.layers`:
+
+```python
+from pt3d.napari.layers import (
+    get_napari_scale,      # Get scale tuple for layers
+    to_napari_points,      # Convert detections to points format
+    to_napari_tracks,      # Convert tracks to tracks format
+)
+
+# Get scale for 4D data (includes time dimension)
+scale = get_napari_scale(voxel_size, include_time=True)
+
+# Convert data for napari
+points = to_napari_points(detections, include_frame=True)
+tracks = to_napari_tracks(tracks_df)
+```
+
+---
+
 ## Diffusion Analysis Parameters
 
 For analyzing Brownian motion and estimating diffusion coefficients.
@@ -385,9 +481,13 @@ Follow this systematic approach for tuning parameters on new data:
 4. Visualize in napari:
    ```python
    import napari
+   from pt3d.napari.layers import get_napari_scale, to_napari_points
+
    viewer = napari.Viewer()
-   viewer.add_image(data)
-   viewer.add_points(detections[['z', 'y', 'x']].values)
+   scale = get_napari_scale(voxel_size, include_time=True)  # For 4D data
+   viewer.add_image(data, scale=scale)
+   points = to_napari_points(detections, include_frame=True)
+   viewer.add_points(points, scale=scale, size=3)
    napari.run()
    ```
 5. Adjust `diameter`:

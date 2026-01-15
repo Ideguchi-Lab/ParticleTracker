@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Working with different file formats
   - Troubleshooting guide for common issues
 - Configuration reference documentation (`docs/configuration.md`)
-  - Complete parameter descriptions for all configuration classes
+  - Parameter descriptions for core configuration classes
   - Parameter tuning workflow guide
   - Common scenarios with recommended settings
 - Enhanced README with documentation links and examples table

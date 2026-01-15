@@ -146,20 +146,25 @@ Before tracking, verify that detection is working correctly:
 
 ```python
 import napari
+from pt3d.napari.layers import get_napari_scale, to_napari_points
 
 viewer = napari.Viewer()
 
+# Get scale for 4D data (t, z, y, x)
+scale = get_napari_scale(voxel_size, include_time=True)
+
 # Add image data
-viewer.add_image(frames, name="Volume", scale=voxel_size.as_tuple())
+viewer.add_image(frames, name="Volume", scale=scale)
 
 # Add detections as points
-# Points need (frame, z, y, x) coordinates
-points = detections[['frame', 'z', 'y', 'x']].values
+# to_napari_points returns (frame, z, y, x) coordinates for 4D
+points = to_napari_points(detections, include_frame=True)
 viewer.add_points(
     points,
     name="Detections",
     size=5,
     face_color="red",
+    scale=scale,
 )
 
 napari.run()
@@ -198,10 +203,10 @@ The `tracks` DataFrame includes:
 Analyze track properties:
 
 ```python
-from pt3d.postprocess import compute_track_stats, filter_short_tracks
+from pt3d.postprocess import compute_track_stats, filter_stubs
 
 # Filter short tracks
-filtered_tracks = filter_short_tracks(tracks, postprocess_config.min_track_length)
+filtered_tracks = filter_stubs(tracks, postprocess_config.min_track_length)
 print(f"Tracks after filtering: {filtered_tracks['particle'].nunique()}")
 
 # Compute statistics
@@ -221,16 +226,20 @@ View the tracking results:
 
 ```python
 import napari
+from pt3d.napari.layers import get_napari_scale, to_napari_tracks
 
 viewer = napari.Viewer()
 
+# Get scale for 4D data (t, z, y, x)
+scale = get_napari_scale(voxel_size, include_time=True)
+
 # Add image
-viewer.add_image(frames, name="Volume", scale=voxel_size.as_tuple())
+viewer.add_image(frames, name="Volume", scale=scale)
 
 # Add tracks
-# napari tracks format: (track_id, frame, z, y, x)
-track_data = filtered_tracks[['particle', 'frame', 'z', 'y', 'x']].values
-viewer.add_tracks(track_data, name="Tracks")
+# to_napari_tracks returns (track_id, frame, z, y, x) format
+track_data = to_napari_tracks(filtered_tracks)
+viewer.add_tracks(track_data, name="Tracks", scale=scale)
 
 napari.run()
 ```
@@ -271,13 +280,15 @@ from pt3d.config import (
 )
 from pt3d.detect import detect_batch
 from pt3d.track import link_detections
-from pt3d.postprocess import compute_track_stats, filter_short_tracks
+from pt3d.postprocess import compute_track_stats, filter_stubs
 
 # 1. Load data
 from pt3d.synth import generate_moving_particles
 frames, _ = generate_moving_particles(
     shape=(20, 32, 64, 64),
     n_particles=10,
+    particle_sigma=(2.0, 3.0, 3.0),
+    velocity_range=(0.5, 2.0),
     seed=42,
 )
 
@@ -295,7 +306,7 @@ tracks = link_detections(detections, track_config, voxel_size)
 print(f"Linked into {tracks['particle'].nunique()} tracks")
 
 # 5. Postprocess
-filtered = filter_short_tracks(tracks, min_length=5)
+filtered = filter_stubs(tracks, min_length=5)
 stats = compute_track_stats(filtered, voxel_size)
 print(f"Final: {len(stats)} tracks, mean length {stats['length'].mean():.1f}")
 ```
