@@ -85,9 +85,7 @@ def compute_velocities(
     df["dx_um"] = df.groupby("particle")["x"].diff() * voxel_size.x_um
 
     # Compute 3D velocity magnitude
-    df["velocity_um"] = np.sqrt(
-        df["dz_um"] ** 2 + df["dy_um"] ** 2 + df["dx_um"] ** 2
-    )
+    df["velocity_um"] = np.sqrt(df["dz_um"] ** 2 + df["dy_um"] ** 2 + df["dx_um"] ** 2)
 
     # Clean up intermediate columns
     df = df.drop(columns=["dz_um", "dy_um", "dx_um"])

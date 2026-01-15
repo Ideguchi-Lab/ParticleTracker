@@ -202,9 +202,7 @@ def tracks_to_positions(
 
         result[int(particle_id)] = positions
 
-    logger.info(
-        f"Converted {len(result)} tracks (filtered {n_filtered} tracks < {min_length} frames)"
-    )
+    logger.info(f"Converted {len(result)} tracks (filtered {n_filtered} tracks < {min_length} frames)")
     return result
 
 
@@ -336,9 +334,7 @@ def analyze_single_track(
     fit_end = max(fit_start + 2, int(len(msd) * fit_range_fraction[1]))
 
     # Fit diffusion exponent
-    alpha, d_coeff = fit_diffusion_exponent(
-        msd, dt=dt, fit_range=(fit_start, fit_end)
-    )
+    alpha, d_coeff = fit_diffusion_exponent(msd, dt=dt, fit_range=(fit_start, fit_end))
 
     return d_coeff, alpha, msd
 
@@ -440,9 +436,7 @@ def analyze_diffusion(
     if config is None:
         config = DAConfig()
 
-    logger.info(
-        f"Starting diffusion analysis with min_track_length={config.min_track_length}"
-    )
+    logger.info(f"Starting diffusion analysis with min_track_length={config.min_track_length}")
 
     # Convert tracks to positions
     voxel_size = result.config.input.voxel_size
@@ -465,10 +459,7 @@ def analyze_diffusion(
 
     # Interpolate gaps if configured
     if config.interpolate_gaps:
-        positions_dict = {
-            pid: interpolate_gaps(pos, method="linear")
-            for pid, pos in positions_dict.items()
-        }
+        positions_dict = {pid: interpolate_gaps(pos, method="linear") for pid, pos in positions_dict.items()}
 
     # Analyze each particle
     particle_data = []
@@ -509,9 +500,7 @@ def analyze_diffusion(
     particle_results = pd.DataFrame(particle_data)
 
     # Compute ensemble MSD
-    ensemble_msd, ensemble_time_lags = compute_ensemble_msd(
-        positions_dict, dt=config.dt
-    )
+    ensemble_msd, ensemble_time_lags = compute_ensemble_msd(positions_dict, dt=config.dt)
 
     logger.info(
         f"Analyzed {len(particle_results)} particles: "

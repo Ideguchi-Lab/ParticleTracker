@@ -431,10 +431,7 @@ def create_analysis_report(
     # Add statistics
     if len(result.particle_results) > 0:
         summary = result.summary()
-        stats_text = (
-            f"Mean D: {summary['D_mean']:.4f} um²/s\n"
-            f"Median D: {summary['D_median']:.4f} um²/s"
-        )
+        stats_text = f"Mean D: {summary['D_mean']:.4f} um²/s\nMedian D: {summary['D_median']:.4f} um²/s"
         ax_d.annotate(
             stats_text,
             xy=(0.95, 0.95),
@@ -454,9 +451,7 @@ def create_analysis_report(
         ax_alpha.legend()
 
         # Add statistics
-        stats_text = (
-            f"Mean α: {result.mean_alpha:.2f}\n" f"Median α: {summary['alpha_median']:.2f}"
-        )
+        stats_text = f"Mean α: {result.mean_alpha:.2f}\nMedian α: {summary['alpha_median']:.2f}"
         ax_alpha.annotate(
             stats_text,
             xy=(0.95, 0.95),

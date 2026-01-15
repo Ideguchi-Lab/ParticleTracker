@@ -92,9 +92,7 @@ def main() -> None:
 
     # Generate data
     print("\nGenerating particles with different diffusion types...")
-    volumes, positions, population_labels = generate_brownian_particles_from_config(
-        config
-    )
+    volumes, positions, population_labels = generate_brownian_particles_from_config(config)
 
     print(f"  Volume shape: {volumes.shape} (t, z, y, x)")
     print(f"  Total particles: {positions.shape[0]}")
@@ -181,12 +179,8 @@ def main() -> None:
                 alpha=0.7,
             )
             # Mark start and end points
-            ax2.scatter(
-                traj_um[0, 2], traj_um[0, 1], color=colors[pop_idx], s=50, marker="o"
-            )
-            ax2.scatter(
-                traj_um[-1, 2], traj_um[-1, 1], color=colors[pop_idx], s=50, marker="s"
-            )
+            ax2.scatter(traj_um[0, 2], traj_um[0, 1], color=colors[pop_idx], s=50, marker="o")
+            ax2.scatter(traj_um[-1, 2], traj_um[-1, 1], color=colors[pop_idx], s=50, marker="s")
 
     ax2.set_xlabel("X (μm)")
     ax2.set_ylabel("Y (μm)")

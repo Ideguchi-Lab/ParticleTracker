@@ -117,9 +117,7 @@ class TestTracksToPositions:
 
     def test_gap_handling(self, sample_tracks_with_gaps, voxel_size):
         """Test handling of frame gaps."""
-        positions = tracks_to_positions(
-            sample_tracks_with_gaps, voxel_size, min_length=5
-        )
+        positions = tracks_to_positions(sample_tracks_with_gaps, voxel_size, min_length=5)
 
         # Particle 0 has gaps (frames 0, 2, 4, ...)
         pos_0 = positions[0]
@@ -158,9 +156,7 @@ class TestInterpolateGaps:
 
     def test_linear_interpolation(self):
         """Test linear interpolation of gaps."""
-        positions = np.array(
-            [[0, 0, 0], [np.nan, np.nan, np.nan], [2, 2, 2]], dtype=np.float64
-        )
+        positions = np.array([[0, 0, 0], [np.nan, np.nan, np.nan], [2, 2, 2]], dtype=np.float64)
         result = interpolate_gaps(positions, method="linear")
 
         expected = np.array([[0, 0, 0], [1, 1, 1], [2, 2, 2]], dtype=np.float64)
@@ -168,9 +164,7 @@ class TestInterpolateGaps:
 
     def test_none_method(self):
         """Test that 'none' method keeps gaps."""
-        positions = np.array(
-            [[0, 0, 0], [np.nan, np.nan, np.nan], [2, 2, 2]], dtype=np.float64
-        )
+        positions = np.array([[0, 0, 0], [np.nan, np.nan, np.nan], [2, 2, 2]], dtype=np.float64)
         result = interpolate_gaps(positions, method="none")
         assert np.isnan(result[1, 0])
 
@@ -319,12 +313,8 @@ class TestAnalyzeDiffusion:
             track_stats: pd.DataFrame = field(default_factory=pd.DataFrame)
             config: PipelineConfig = None
             input_info: dict = field(default_factory=dict)
-            start_time: datetime = field(
-                default_factory=lambda: datetime.now(timezone.utc)
-            )
-            end_time: datetime = field(
-                default_factory=lambda: datetime.now(timezone.utc)
-            )
+            start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+            end_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
         return MockPipelineResult(tracks=sample_tracks, config=config)
 

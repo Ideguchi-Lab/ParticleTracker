@@ -49,9 +49,7 @@ def sample_analysis_result():
     for pid in range(5):
         # Generate random walk
         rng = np.random.default_rng(42 + pid)
-        n_frames = particle_results.loc[
-            particle_results["particle"] == pid, "n_frames"
-        ].values[0]
+        n_frames = particle_results.loc[particle_results["particle"] == pid, "n_frames"].values[0]
         positions = np.cumsum(rng.normal(0, 0.1, (n_frames, 3)), axis=0)
         positions_um[pid] = positions
 
@@ -62,9 +60,7 @@ def sample_analysis_result():
         msd_per_particle[pid] = ParticleDiffusionResult(
             particle=pid,
             D=particle_results.loc[particle_results["particle"] == pid, "D"].values[0],
-            alpha=particle_results.loc[
-                particle_results["particle"] == pid, "alpha"
-            ].values[0],
+            alpha=particle_results.loc[particle_results["particle"] == pid, "alpha"].values[0],
             n_frames=n_frames,
             msd=msd,
             time_lags=time_lags,
@@ -201,9 +197,7 @@ class TestPlotDiffusionHistograms:
     def test_log_scale_option(self, sample_analysis_result):
         """Test log scale option for D histogram."""
         config = HistogramConfig(log_scale_d=True)
-        fig, (ax_d, _ax_alpha) = plot_diffusion_histograms(
-            sample_analysis_result, config=config
-        )
+        fig, (ax_d, _ax_alpha) = plot_diffusion_histograms(sample_analysis_result, config=config)
 
         assert ax_d.get_xscale() == "log"
         plt.close(fig)
@@ -211,9 +205,7 @@ class TestPlotDiffusionHistograms:
     def test_stats_annotation(self, sample_analysis_result):
         """Test statistics annotation."""
         config = HistogramConfig(show_stats=True)
-        fig, (ax_d, _ax_alpha) = plot_diffusion_histograms(
-            sample_analysis_result, config=config
-        )
+        fig, (ax_d, _ax_alpha) = plot_diffusion_histograms(sample_analysis_result, config=config)
 
         # Check that annotations exist
         assert len(ax_d.texts) > 0 or len(ax_d.patches) > 0

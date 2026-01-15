@@ -92,9 +92,7 @@ def main() -> None:
     # Add tracks with color coding by track ID
     if len(tracks) > 0:
         tracks_data = to_napari_tracks(tracks)
-        properties, color_by = tracks_visualization_properties(
-            tracks, track_stats, color_by="track_id"
-        )
+        properties, color_by = tracks_visualization_properties(tracks, track_stats, color_by="track_id")
 
         viewer.add_tracks(
             tracks_data,
@@ -122,9 +120,7 @@ def main() -> None:
     # Add projected tracks (initially hidden)
     if proj_tracks is not None and len(proj_tracks) > 0:
         proj_tracks_data = to_napari_tracks(proj_tracks)
-        proj_properties, proj_color_by = tracks_visualization_properties(
-            proj_tracks, track_stats, color_by="track_id"
-        )
+        proj_properties, proj_color_by = tracks_visualization_properties(proj_tracks, track_stats, color_by="track_id")
 
         viewer.add_tracks(
             proj_tracks_data,
