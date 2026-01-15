@@ -5,7 +5,12 @@ contributions:
     - id: pt3d.main_widget
       title: 3D Particle Tracker
       python_name: pt3d.napari.widgets:MainWidget
+    - id: pt3d.track_3d_widget
+      title: 3D Track Visualization
+      python_name: pt3d.napari.widgets:Track3DVisualizationWidget
 
   widgets:
     - command: pt3d.main_widget
       display_name: 3D Particle Tracker
+    - command: pt3d.track_3d_widget
+      display_name: 3D Track Visualization

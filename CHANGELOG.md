@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Interactive 3D visualization widget (`Track3DVisualizationWidget`)
+  - 3D display mode toggle for napari viewer
+  - Volume rendering settings (MIP, attenuated MIP, translucent, ISO)
+  - Contrast, gamma, and opacity controls with percentile-based auto-adjustment
+  - Track display customization (color by Track ID/Time/Length/Velocity)
+  - Detection points visualization settings
+  - Camera presets (XY, XZ, YZ, Isometric views)
+  - Time navigation with slider and playback controls
+- 3D configuration models (`Volume3DConfig`, `Track3DConfig`, `Points3DConfig`)
+- 3D layer helper functions (`configure_3d_image_layer`, `configure_3d_tracks_layer`, `configure_3d_points_layer`)
+- Camera preset definitions (`CAMERA_PRESETS`, `get_camera_preset`)
+- Starter guide example with 3D visualization (`examples/starter_guide.py`)
 - User guide documentation (`docs/user_guide.md`)
   - Step-by-step tutorial for real data analysis
   - Working with different file formats

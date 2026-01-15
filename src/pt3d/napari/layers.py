@@ -8,9 +8,10 @@ import numpy as np
 import pandas as pd
 
 if TYPE_CHECKING:
+    import napari.layers
     from numpy.typing import NDArray
 
-    from pt3d.config import VoxelSize
+    from pt3d.config import Points3DConfig, Track3DConfig, Volume3DConfig, VoxelSize
 
 
 def to_napari_points(
@@ -302,3 +303,135 @@ def compute_xy_max_projection(
         projected_tracks["z"] = 0.0
 
     return projected, projected_tracks
+
+
+def configure_3d_image_layer(
+    layer: napari.layers.Image,
+    config: Volume3DConfig,
+    data: NDArray | None = None,
+) -> None:
+    """Configure napari Image layer for 3D volume rendering.
+
+    Parameters
+    ----------
+    layer : napari.layers.Image
+        napari image layer to configure
+    config : Volume3DConfig
+        Volume rendering configuration
+    data : NDArray | None
+        Image data for contrast calculation. If None, uses layer.data.
+    """
+    # Set rendering mode
+    layer.rendering = config.rendering_mode
+
+    # Calculate contrast limits from percentiles
+    if data is None:
+        data = layer.data
+
+    # Handle 4D data (T, Z, Y, X) - use all data for percentile calculation
+    flat_data = data.ravel()
+    low = float(np.percentile(flat_data, config.contrast_percentile_low))
+    high = float(np.percentile(flat_data, config.contrast_percentile_high))
+    layer.contrast_limits = (low, high)
+
+    # Set gamma and opacity
+    layer.gamma = config.gamma
+    layer.opacity = config.opacity
+    layer.colormap = config.colormap
+
+    # Set iso threshold if applicable
+    if config.rendering_mode == "iso":
+        # Convert relative threshold to absolute value
+        data_range = high - low
+        layer.iso_threshold = low + data_range * config.iso_threshold
+
+
+def configure_3d_tracks_layer(
+    layer: napari.layers.Tracks,
+    config: Track3DConfig,
+    tracks: pd.DataFrame | None = None,
+    track_stats: pd.DataFrame | None = None,
+) -> None:
+    """Configure napari Tracks layer for 3D visualization.
+
+    Parameters
+    ----------
+    layer : napari.layers.Tracks
+        napari tracks layer to configure
+    config : Track3DConfig
+        Track visualization configuration
+    tracks : pd.DataFrame | None
+        Tracks DataFrame for property generation
+    track_stats : pd.DataFrame | None
+        Track statistics for color_by options
+    """
+    # Set tail length (how many frames of trail to show)
+    layer.tail_length = config.tail_length
+
+    # Set colormap
+    layer.colormap = config.colormap
+
+    # Set properties and color_by if tracks provided
+    if tracks is not None:
+        properties, actual_color_by = tracks_visualization_properties(tracks, track_stats, config.color_by)
+        layer.properties = properties
+        layer.color_by = actual_color_by
+
+
+def configure_3d_points_layer(
+    layer: napari.layers.Points,
+    config: Points3DConfig,
+) -> None:
+    """Configure napari Points layer for 3D visualization.
+
+    Parameters
+    ----------
+    layer : napari.layers.Points
+        napari points layer to configure
+    config : Points3DConfig
+        Points visualization configuration
+    """
+    layer.size = config.size
+    layer.face_color = config.face_color
+    layer.opacity = config.opacity
+
+
+# Camera preset definitions
+CAMERA_PRESETS = {
+    "xy": {
+        "angles": (0, 0, 90),
+        "name": "XY View (Top)",
+        "description": "Looking down Z axis",
+    },
+    "xz": {
+        "angles": (0, -90, 90),
+        "name": "XZ View (Front)",
+        "description": "Looking along Y axis",
+    },
+    "yz": {
+        "angles": (90, 0, 0),
+        "name": "YZ View (Side)",
+        "description": "Looking along X axis",
+    },
+    "isometric": {
+        "angles": (30, 45, 0),
+        "name": "Isometric",
+        "description": "3D isometric view",
+    },
+}
+
+
+def get_camera_preset(preset: str) -> dict:
+    """Get camera parameters for predefined view presets.
+
+    Parameters
+    ----------
+    preset : str
+        One of "xy", "xz", "yz", "isometric"
+
+    Returns
+    -------
+    dict
+        Camera parameters dict with keys: angles, name, description
+    """
+    return CAMERA_PRESETS.get(preset, CAMERA_PRESETS["isometric"])

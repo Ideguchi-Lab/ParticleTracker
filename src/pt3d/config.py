@@ -149,7 +149,7 @@ class TrackingConfig(BaseModel):
     adaptive_step: float | None = Field(default=None, description="Adaptive search step factor")
 
     @model_validator(mode="after")
-    def check_adaptive_params(self) -> "TrackingConfig":
+    def check_adaptive_params(self) -> TrackingConfig:
         """Validate adaptive search parameters are used together."""
         if (self.adaptive_stop is None) != (self.adaptive_step is None):
             msg = "adaptive_stop and adaptive_step must be used together"
@@ -209,6 +209,82 @@ class NapariConfig(BaseModel):
     points_name: str = Field(default="Detections", description="Points layer name")
     tracks_name: str = Field(default="Tracks", description="Tracks layer name")
     frame_range: tuple[int, int] | None = Field(default=None, description="Frame range for subset display")
+
+
+class Volume3DConfig(BaseModel):
+    """3D volume rendering configuration for napari.
+
+    Attributes
+    ----------
+    rendering_mode : str
+        Rendering mode: mip, attenuated_mip, translucent, or iso
+    contrast_percentile_low : float
+        Lower percentile for contrast limits (0-100)
+    contrast_percentile_high : float
+        Upper percentile for contrast limits (0-100)
+    gamma : float
+        Gamma correction value
+    opacity : float
+        Layer opacity (0-1)
+    iso_threshold : float
+        Threshold for iso rendering mode (0-1, relative to data range)
+    colormap : str
+        Colormap name for volume rendering
+    """
+
+    rendering_mode: Literal["mip", "attenuated_mip", "translucent", "iso"] = Field(
+        default="mip", description="Volume rendering mode"
+    )
+    contrast_percentile_low: float = Field(default=1.0, ge=0, le=100, description="Lower percentile for contrast")
+    contrast_percentile_high: float = Field(default=99.0, ge=0, le=100, description="Upper percentile for contrast")
+    gamma: float = Field(default=1.0, gt=0, description="Gamma correction")
+    opacity: float = Field(default=0.5, ge=0, le=1, description="Layer opacity")
+    iso_threshold: float = Field(default=0.5, ge=0, le=1, description="ISO threshold (relative)")
+    colormap: str = Field(default="gray", description="Colormap for volume")
+
+
+class Track3DConfig(BaseModel):
+    """3D track visualization configuration.
+
+    Attributes
+    ----------
+    colormap : str
+        Colormap for track coloring
+    color_by : str
+        Property to color tracks by
+    tail_length : int
+        Number of frames to show in track trail
+    show_current_position : bool
+        Highlight current particle positions
+    """
+
+    colormap: str = Field(default="turbo", description="Track colormap")
+    color_by: Literal["track_id", "time", "length", "velocity"] = Field(
+        default="track_id", description="Property for track coloring"
+    )
+    tail_length: int = Field(default=10, ge=0, description="Trail length in frames")
+    show_current_position: bool = Field(default=True, description="Highlight current positions")
+
+
+class Points3DConfig(BaseModel):
+    """3D detection points visualization configuration.
+
+    Attributes
+    ----------
+    size : float
+        Point size in display units
+    face_color : str
+        Color for point faces
+    opacity : float
+        Point opacity (0-1)
+    show_current_frame_only : bool
+        Show only points from current frame
+    """
+
+    size: float = Field(default=5.0, ge=1, description="Point size")
+    face_color: str = Field(default="yellow", description="Point face color")
+    opacity: float = Field(default=0.8, ge=0, le=1, description="Point opacity")
+    show_current_frame_only: bool = Field(default=True, description="Show current frame only")
 
 
 class PipelineConfig(BaseModel):

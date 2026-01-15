@@ -8,8 +8,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from qtpy.QtCore import Qt, Signal
+from qtpy.QtCore import Qt, QTimer, Signal
 from qtpy.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -18,6 +19,8 @@ from qtpy.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QRadioButton,
+    QSlider,
     QSpinBox,
     QTextEdit,
     QVBoxLayout,
@@ -29,7 +32,7 @@ if TYPE_CHECKING:
     import numpy as np
     import pandas as pd
 
-    from pt3d.config import VoxelSize
+    from pt3d.config import Points3DConfig, Track3DConfig, Volume3DConfig, VoxelSize
 
 logger = logging.getLogger(__name__)
 
@@ -670,6 +673,510 @@ class TrackVisualizationWidget(QWidget):
         """Apply current visualization settings."""
         self._on_display_mode_changed()
         self._update_track_colors()
+
+
+class Track3DVisualizationWidget(QWidget):
+    """Widget for interactive 3D visualization of tracks, volumes, and detection points.
+
+    This widget provides controls for:
+    - 3D display mode toggle
+    - Volume rendering settings (MIP, attenuated MIP, translucent, ISO)
+    - Track visualization (color by, colormap, trail length)
+    - Detection points display
+    - Camera presets and time navigation
+    """
+
+    visualization_updated = Signal()
+
+    def __init__(self, napari_viewer: napari.Viewer, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.viewer = napari_viewer
+        self._current_tracks: pd.DataFrame | None = None
+        self._current_stats: pd.DataFrame | None = None
+        self._voxel_size: VoxelSize | None = None
+        self._is_3d_mode = False
+        self._play_timer: QTimer | None = None
+        self._max_frames = 100
+        self._setup_ui()
+
+    def _setup_ui(self) -> None:
+        """Setup the widget UI layout."""
+        layout = QVBoxLayout()
+
+        # Title
+        title = QLabel("3D Track Visualization")
+        title.setStyleSheet("font-weight: bold; font-size: 14px;")
+        layout.addWidget(title)
+
+        # 3D mode toggle
+        self.mode_3d_check = QCheckBox("Enable 3D Display")
+        self.mode_3d_check.stateChanged.connect(self._on_3d_mode_toggled)
+        layout.addWidget(self.mode_3d_check)
+
+        # Volume Rendering group
+        layout.addWidget(self._setup_volume_group())
+
+        # Track Display group
+        layout.addWidget(self._setup_track_group())
+
+        # Detection Points group
+        layout.addWidget(self._setup_points_group())
+
+        # Camera group
+        layout.addWidget(self._setup_camera_group())
+
+        # Time Navigation group
+        layout.addWidget(self._setup_time_group())
+
+        # Apply button
+        self.apply_button = QPushButton("Update Visualization")
+        self.apply_button.clicked.connect(self._apply_visualization)
+        layout.addWidget(self.apply_button)
+
+        layout.addStretch()
+        self.setLayout(layout)
+
+    def _setup_volume_group(self) -> QGroupBox:
+        """Setup volume rendering controls."""
+        group = QGroupBox("Volume Rendering")
+        layout = QVBoxLayout()
+
+        # Rendering mode
+        mode_layout = QHBoxLayout()
+        mode_layout.addWidget(QLabel("Rendering:"))
+        self.rendering_combo = QComboBox()
+        self.rendering_combo.addItems(["mip", "attenuated_mip", "translucent", "iso"])
+        self.rendering_combo.currentIndexChanged.connect(self._on_volume_settings_changed)
+        mode_layout.addWidget(self.rendering_combo)
+        layout.addLayout(mode_layout)
+
+        # Contrast percentile
+        contrast_layout = QHBoxLayout()
+        contrast_layout.addWidget(QLabel("Contrast:"))
+        self.contrast_low_spin = QDoubleSpinBox()
+        self.contrast_low_spin.setRange(0, 100)
+        self.contrast_low_spin.setValue(1.0)
+        self.contrast_low_spin.setSuffix("%")
+        self.contrast_low_spin.valueChanged.connect(self._on_volume_settings_changed)
+        contrast_layout.addWidget(self.contrast_low_spin)
+        contrast_layout.addWidget(QLabel("-"))
+        self.contrast_high_spin = QDoubleSpinBox()
+        self.contrast_high_spin.setRange(0, 100)
+        self.contrast_high_spin.setValue(99.0)
+        self.contrast_high_spin.setSuffix("%")
+        self.contrast_high_spin.valueChanged.connect(self._on_volume_settings_changed)
+        contrast_layout.addWidget(self.contrast_high_spin)
+        layout.addLayout(contrast_layout)
+
+        # Gamma
+        gamma_layout = QHBoxLayout()
+        gamma_layout.addWidget(QLabel("Gamma:"))
+        self.gamma_slider = QSlider(Qt.Orientation.Horizontal)
+        self.gamma_slider.setRange(10, 300)  # 0.1 to 3.0
+        self.gamma_slider.setValue(100)
+        self.gamma_slider.valueChanged.connect(self._on_volume_settings_changed)
+        gamma_layout.addWidget(self.gamma_slider)
+        self.gamma_label = QLabel("1.0")
+        gamma_layout.addWidget(self.gamma_label)
+        layout.addLayout(gamma_layout)
+
+        # Opacity
+        opacity_layout = QHBoxLayout()
+        opacity_layout.addWidget(QLabel("Opacity:"))
+        self.volume_opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.volume_opacity_slider.setRange(0, 100)
+        self.volume_opacity_slider.setValue(50)
+        self.volume_opacity_slider.valueChanged.connect(self._on_volume_settings_changed)
+        opacity_layout.addWidget(self.volume_opacity_slider)
+        self.volume_opacity_label = QLabel("0.5")
+        opacity_layout.addWidget(self.volume_opacity_label)
+        layout.addLayout(opacity_layout)
+
+        # Colormap
+        cmap_layout = QHBoxLayout()
+        cmap_layout.addWidget(QLabel("Colormap:"))
+        self.volume_colormap_combo = QComboBox()
+        self.volume_colormap_combo.addItems(["gray", "viridis", "magma", "plasma", "inferno"])
+        self.volume_colormap_combo.currentIndexChanged.connect(self._on_volume_settings_changed)
+        cmap_layout.addWidget(self.volume_colormap_combo)
+        layout.addLayout(cmap_layout)
+
+        group.setLayout(layout)
+        return group
+
+    def _setup_track_group(self) -> QGroupBox:
+        """Setup track visualization controls."""
+        group = QGroupBox("Track Display")
+        layout = QVBoxLayout()
+
+        # Color by
+        color_layout = QHBoxLayout()
+        color_layout.addWidget(QLabel("Color by:"))
+        self.track_color_by_combo = QComboBox()
+        self.track_color_by_combo.addItems(["Track ID", "Time (frame)", "Track Length", "Velocity"])
+        self.track_color_by_combo.currentIndexChanged.connect(self._on_track_settings_changed)
+        color_layout.addWidget(self.track_color_by_combo)
+        layout.addLayout(color_layout)
+
+        # Colormap
+        cmap_layout = QHBoxLayout()
+        cmap_layout.addWidget(QLabel("Colormap:"))
+        self.track_colormap_combo = QComboBox()
+        self.track_colormap_combo.addItems(["turbo", "viridis", "plasma", "magma", "hsv"])
+        self.track_colormap_combo.currentIndexChanged.connect(self._on_track_settings_changed)
+        cmap_layout.addWidget(self.track_colormap_combo)
+        layout.addLayout(cmap_layout)
+
+        # Trail length
+        trail_layout = QHBoxLayout()
+        trail_layout.addWidget(QLabel("Trail:"))
+        self.trail_slider = QSlider(Qt.Orientation.Horizontal)
+        self.trail_slider.setRange(0, 100)
+        self.trail_slider.setValue(10)
+        self.trail_slider.valueChanged.connect(self._on_track_settings_changed)
+        trail_layout.addWidget(self.trail_slider)
+        self.trail_label = QLabel("10 frames")
+        trail_layout.addWidget(self.trail_label)
+        layout.addLayout(trail_layout)
+
+        # Show current position
+        self.show_position_check = QCheckBox("Highlight current position")
+        self.show_position_check.setChecked(True)
+        layout.addWidget(self.show_position_check)
+
+        group.setLayout(layout)
+        return group
+
+    def _setup_points_group(self) -> QGroupBox:
+        """Setup detection points controls."""
+        group = QGroupBox("Detection Points")
+        layout = QVBoxLayout()
+
+        # Size
+        size_layout = QHBoxLayout()
+        size_layout.addWidget(QLabel("Size:"))
+        self.points_size_spin = QSpinBox()
+        self.points_size_spin.setRange(1, 50)
+        self.points_size_spin.setValue(5)
+        self.points_size_spin.valueChanged.connect(self._on_points_settings_changed)
+        size_layout.addWidget(self.points_size_spin)
+        layout.addLayout(size_layout)
+
+        # Color
+        color_layout = QHBoxLayout()
+        color_layout.addWidget(QLabel("Color:"))
+        self.points_color_combo = QComboBox()
+        self.points_color_combo.addItems(["yellow", "red", "green", "cyan", "magenta", "white"])
+        self.points_color_combo.currentIndexChanged.connect(self._on_points_settings_changed)
+        color_layout.addWidget(self.points_color_combo)
+        layout.addLayout(color_layout)
+
+        # Opacity
+        opacity_layout = QHBoxLayout()
+        opacity_layout.addWidget(QLabel("Opacity:"))
+        self.points_opacity_slider = QSlider(Qt.Orientation.Horizontal)
+        self.points_opacity_slider.setRange(0, 100)
+        self.points_opacity_slider.setValue(80)
+        self.points_opacity_slider.valueChanged.connect(self._on_points_settings_changed)
+        opacity_layout.addWidget(self.points_opacity_slider)
+        self.points_opacity_label = QLabel("0.8")
+        opacity_layout.addWidget(self.points_opacity_label)
+        layout.addLayout(opacity_layout)
+
+        # Current frame only
+        self.current_frame_only_check = QCheckBox("Show current frame only")
+        self.current_frame_only_check.setChecked(True)
+        layout.addWidget(self.current_frame_only_check)
+
+        group.setLayout(layout)
+        return group
+
+    def _setup_camera_group(self) -> QGroupBox:
+        """Setup camera preset controls."""
+        group = QGroupBox("Camera")
+        layout = QVBoxLayout()
+
+        # Preset buttons
+        preset_layout = QHBoxLayout()
+        self.camera_button_group = QButtonGroup(self)
+
+        presets = [("XY", "xy"), ("XZ", "xz"), ("YZ", "yz"), ("Iso", "isometric")]
+        for i, (label, preset_id) in enumerate(presets):
+            btn = QRadioButton(label)
+            btn.setProperty("preset_id", preset_id)
+            if i == 3:  # Isometric default
+                btn.setChecked(True)
+            self.camera_button_group.addButton(btn, i)
+            preset_layout.addWidget(btn)
+
+        self.camera_button_group.buttonClicked.connect(self._on_camera_preset_clicked)
+        layout.addLayout(preset_layout)
+
+        group.setLayout(layout)
+        return group
+
+    def _setup_time_group(self) -> QGroupBox:
+        """Setup time navigation controls."""
+        group = QGroupBox("Time Navigation")
+        layout = QVBoxLayout()
+
+        # Frame slider
+        slider_layout = QHBoxLayout()
+        slider_layout.addWidget(QLabel("Frame:"))
+        self.frame_slider = QSlider(Qt.Orientation.Horizontal)
+        self.frame_slider.setRange(0, 100)
+        self.frame_slider.setValue(0)
+        self.frame_slider.valueChanged.connect(self._on_frame_changed)
+        slider_layout.addWidget(self.frame_slider)
+        self.frame_label = QLabel("0 / 100")
+        slider_layout.addWidget(self.frame_label)
+        layout.addLayout(slider_layout)
+
+        # Play controls
+        play_layout = QHBoxLayout()
+        self.play_button = QPushButton("Play")
+        self.play_button.clicked.connect(self._toggle_play)
+        play_layout.addWidget(self.play_button)
+
+        play_layout.addWidget(QLabel("Speed:"))
+        self.fps_spin = QSpinBox()
+        self.fps_spin.setRange(1, 60)
+        self.fps_spin.setValue(10)
+        self.fps_spin.setSuffix(" fps")
+        play_layout.addWidget(self.fps_spin)
+
+        layout.addLayout(play_layout)
+
+        group.setLayout(layout)
+        return group
+
+    def set_data(
+        self,
+        image: np.ndarray | None = None,
+        tracks: pd.DataFrame | None = None,
+        detections: pd.DataFrame | None = None,
+        voxel_size: VoxelSize | None = None,
+    ) -> None:
+        """Set visualization data.
+
+        Parameters
+        ----------
+        image : np.ndarray | None
+            4D image data (T, Z, Y, X)
+        tracks : pd.DataFrame | None
+            Tracks DataFrame
+        detections : pd.DataFrame | None
+            Detections DataFrame
+        voxel_size : VoxelSize | None
+            Physical voxel dimensions
+        """
+        from pt3d.postprocess import compute_track_stats
+
+        self._voxel_size = voxel_size
+        self._current_tracks = tracks
+
+        # Compute track statistics if tracks provided
+        if tracks is not None and voxel_size is not None and len(tracks) > 0:
+            self._current_stats = compute_track_stats(tracks, voxel_size)
+
+        # Update frame slider range based on image data
+        if image is not None and image.ndim >= 4:
+            self._max_frames = image.shape[0] - 1
+            self.frame_slider.setRange(0, self._max_frames)
+            self.frame_label.setText(f"0 / {self._max_frames}")
+
+    def enter_3d_mode(self) -> None:
+        """Switch napari viewer to 3D display mode."""
+        self.viewer.dims.ndisplay = 3
+        self._is_3d_mode = True
+        self._apply_volume_settings()
+        self._apply_track_settings()
+        self._apply_points_settings()
+        self._apply_camera_preset("isometric")
+        self.mode_3d_check.setChecked(True)
+
+    def exit_3d_mode(self) -> None:
+        """Return to 2D slice display mode."""
+        self.viewer.dims.ndisplay = 2
+        self._is_3d_mode = False
+        self.mode_3d_check.setChecked(False)
+
+        # Reset image rendering to default
+        for layer in self.viewer.layers:
+            import napari.layers
+
+            if isinstance(layer, napari.layers.Image):
+                layer.rendering = "mip"
+
+    def _on_3d_mode_toggled(self, state: int) -> None:
+        """Handle 3D mode checkbox state change."""
+        # Qt.CheckState.Checked is 2 for both Qt5 and Qt6
+        if state == 2:
+            self.enter_3d_mode()
+        else:
+            self.exit_3d_mode()
+
+    def _get_volume_config(self) -> Volume3DConfig:
+        """Get current volume rendering configuration."""
+        from pt3d.config import Volume3DConfig
+
+        gamma = self.gamma_slider.value() / 100.0
+        opacity = self.volume_opacity_slider.value() / 100.0
+
+        return Volume3DConfig(
+            rendering_mode=self.rendering_combo.currentText(),  # type: ignore[arg-type]
+            contrast_percentile_low=self.contrast_low_spin.value(),
+            contrast_percentile_high=self.contrast_high_spin.value(),
+            gamma=gamma,
+            opacity=opacity,
+            colormap=self.volume_colormap_combo.currentText(),
+        )
+
+    def _get_track_config(self) -> Track3DConfig:
+        """Get current track visualization configuration."""
+        from pt3d.config import Track3DConfig
+
+        color_by_map = {0: "track_id", 1: "time", 2: "length", 3: "velocity"}
+        color_by = color_by_map.get(self.track_color_by_combo.currentIndex(), "track_id")
+
+        return Track3DConfig(
+            colormap=self.track_colormap_combo.currentText(),
+            color_by=color_by,  # type: ignore[arg-type]
+            tail_length=self.trail_slider.value(),
+            show_current_position=self.show_position_check.isChecked(),
+        )
+
+    def _get_points_config(self) -> Points3DConfig:
+        """Get current points visualization configuration."""
+        from pt3d.config import Points3DConfig
+
+        opacity = self.points_opacity_slider.value() / 100.0
+
+        return Points3DConfig(
+            size=float(self.points_size_spin.value()),
+            face_color=self.points_color_combo.currentText(),
+            opacity=opacity,
+            show_current_frame_only=self.current_frame_only_check.isChecked(),
+        )
+
+    def _apply_volume_settings(self) -> None:
+        """Apply current volume rendering settings to image layers."""
+        import napari.layers
+
+        from pt3d.napari.layers import configure_3d_image_layer
+
+        config = self._get_volume_config()
+
+        # Update labels
+        self.gamma_label.setText(f"{config.gamma:.1f}")
+        self.volume_opacity_label.setText(f"{config.opacity:.1f}")
+
+        for layer in self.viewer.layers:
+            if isinstance(layer, napari.layers.Image):
+                configure_3d_image_layer(layer, config)
+
+    def _apply_track_settings(self) -> None:
+        """Apply current track visualization settings."""
+        import napari.layers
+
+        from pt3d.napari.layers import configure_3d_tracks_layer
+
+        config = self._get_track_config()
+
+        # Update labels
+        self.trail_label.setText(f"{config.tail_length} frames")
+
+        for layer in self.viewer.layers:
+            if isinstance(layer, napari.layers.Tracks):
+                configure_3d_tracks_layer(layer, config, self._current_tracks, self._current_stats)
+
+    def _apply_points_settings(self) -> None:
+        """Apply current points visualization settings."""
+        import napari.layers
+
+        from pt3d.napari.layers import configure_3d_points_layer
+
+        config = self._get_points_config()
+
+        # Update labels
+        self.points_opacity_label.setText(f"{config.opacity:.1f}")
+
+        for layer in self.viewer.layers:
+            if isinstance(layer, napari.layers.Points):
+                configure_3d_points_layer(layer, config)
+
+    def _apply_camera_preset(self, preset: str) -> None:
+        """Apply camera preset to viewer."""
+        from pt3d.napari.layers import get_camera_preset
+
+        preset_info = get_camera_preset(preset)
+        angles = preset_info["angles"]
+
+        # Apply camera angles
+        self.viewer.camera.angles = angles
+
+    def _on_volume_settings_changed(self) -> None:
+        """Handle volume settings change."""
+        if self._is_3d_mode:
+            self._apply_volume_settings()
+
+    def _on_track_settings_changed(self) -> None:
+        """Handle track settings change."""
+        if self._is_3d_mode:
+            self._apply_track_settings()
+
+    def _on_points_settings_changed(self) -> None:
+        """Handle points settings change."""
+        if self._is_3d_mode:
+            self._apply_points_settings()
+
+    def _on_camera_preset_clicked(self) -> None:
+        """Handle camera preset button click."""
+        button = self.camera_button_group.checkedButton()
+        if button is not None:
+            preset = button.property("preset_id")
+            if isinstance(preset, str):
+                self._apply_camera_preset(preset)
+
+    def _on_frame_changed(self, value: int) -> None:
+        """Handle frame slider value change."""
+        # Update label
+        self.frame_label.setText(f"{value} / {self._max_frames}")
+
+        # Update viewer's current step for time dimension
+        current_step = list(self.viewer.dims.current_step)
+        if len(current_step) > 0:
+            current_step[0] = value
+            self.viewer.dims.current_step = tuple(current_step)
+
+    def _toggle_play(self) -> None:
+        """Toggle play/pause of time animation."""
+        if self._play_timer is None:
+            # Start playing
+            self._play_timer = QTimer()
+            self._play_timer.timeout.connect(self._advance_frame)
+            interval = int(1000 / self.fps_spin.value())
+            self._play_timer.start(interval)
+            self.play_button.setText("Stop")
+        else:
+            # Stop playing
+            self._play_timer.stop()
+            self._play_timer = None
+            self.play_button.setText("Play")
+
+    def _advance_frame(self) -> None:
+        """Advance to next frame during playback."""
+        current = self.frame_slider.value()
+        next_frame = (current + 1) % (self._max_frames + 1)
+        self.frame_slider.setValue(next_frame)
+
+    def _apply_visualization(self) -> None:
+        """Apply all current visualization settings."""
+        if self._is_3d_mode:
+            self._apply_volume_settings()
+            self._apply_track_settings()
+            self._apply_points_settings()
+        self.visualization_updated.emit()
 
 
 class MainWidget(QWidget):
