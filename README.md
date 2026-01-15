@@ -69,7 +69,22 @@ napari.run()
 
 ## Documentation
 
-See [docs/spec.md](docs/spec.md) for the full specification.
+- **[User Guide](docs/user_guide.md)** - Step-by-step tutorial for real data analysis
+- **[Configuration Reference](docs/configuration.md)** - Complete parameter tuning guide
+- **[Technical Specification](docs/spec.md)** - Architecture and design details (Japanese)
+
+## Examples
+
+See the [examples/](examples/) directory for working code:
+
+| Example | Description |
+|---------|-------------|
+| [tracking_pipeline.py](examples/tracking_pipeline.py) | Complete detection → tracking workflow |
+| [basic_detection.py](examples/basic_detection.py) | Single frame and batch detection |
+| [napari_interactive.py](examples/napari_interactive.py) | Interactive visualization with napari |
+| [demo_brownian_motion.py](examples/demo_brownian_motion.py) | Brownian motion simulation |
+| [demo_brownian_analysis.py](examples/demo_brownian_analysis.py) | Diffusion coefficient estimation |
+| [sample_config.yaml](examples/sample_config.yaml) | YAML configuration template |
 
 ## License
 
