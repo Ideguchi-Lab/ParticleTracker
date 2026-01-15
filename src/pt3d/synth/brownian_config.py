@@ -92,9 +92,7 @@ class ParticlePopulationConfig(BaseModel):
     particle_type: ParticleTypeConfig = Field(default_factory=ParticleTypeConfig)
     diffusion: DiffusionConfig
     initial_positions: list[tuple[float, float, float]] | None = None
-    initial_region: (
-        tuple[tuple[float, float], tuple[float, float], tuple[float, float]] | None
-    ) = None
+    initial_region: tuple[tuple[float, float], tuple[float, float], tuple[float, float]] | None = None
 
 
 class BrownianSimulationConfig(BaseModel):

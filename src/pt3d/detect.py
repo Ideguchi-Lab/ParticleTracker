@@ -139,9 +139,7 @@ def detect_batch(
         )
 
         if features is None or len(features) == 0:
-            return pd.DataFrame(
-                columns=["frame", "z", "y", "x", "mass", "size", "ecc", "signal", "raw_mass", "ep"]
-            )
+            return pd.DataFrame(columns=["frame", "z", "y", "x", "mass", "size", "ecc", "signal", "raw_mass", "ep"])
 
         # Adjust frame numbers if processing a subset
         if frame_offset > 0:

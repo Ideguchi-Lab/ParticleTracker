@@ -164,9 +164,7 @@ def create_3d_track_movie(
         return []
 
     print(f"Creating animation with {len(frames)} frames...")
-    anim = animation.FuncAnimation(
-        fig, update, init_func=init, frames=len(frames), interval=1000 // fps, blit=False
-    )
+    anim = animation.FuncAnimation(fig, update, init_func=init, frames=len(frames), interval=1000 // fps, blit=False)
 
     # Save animation
     output_path = Path(output_path)
@@ -196,12 +194,8 @@ def main() -> None:
         help="Output file path (.mp4 or .gif)",
     )
     parser.add_argument("--fps", type=int, default=10, help="Frames per second")
-    parser.add_argument(
-        "--rotate", action="store_true", help="Rotate view during animation"
-    )
-    parser.add_argument(
-        "--trail", type=int, default=5, help="Number of frames to show as trail"
-    )
+    parser.add_argument("--rotate", action="store_true", help="Rotate view during animation")
+    parser.add_argument("--trail", type=int, default=5, help="Number of frames to show as trail")
     args = parser.parse_args()
 
     from pt3d.config import DetectionConfig, TrackingConfig, VoxelSize

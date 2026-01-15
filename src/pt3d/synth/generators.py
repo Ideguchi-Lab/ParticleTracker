@@ -45,9 +45,7 @@ def generate_sphere_volume(
     (32, 64, 64)
     """
     z, y, x = np.ogrid[: shape[0], : shape[1], : shape[2]]
-    dist = np.sqrt(
-        (z - center[0]) ** 2 + (y - center[1]) ** 2 + (x - center[2]) ** 2
-    )
+    dist = np.sqrt((z - center[0]) ** 2 + (y - center[1]) ** 2 + (x - center[2]) ** 2)
     volume = np.zeros(shape, dtype=np.float64)
     volume[dist <= radius] = intensity
     return volume
@@ -250,9 +248,7 @@ def generate_moving_particles(
         new_positions = positions[:, t - 1, :] + velocities
 
         # Reflect at boundaries
-        for dim, (margin, limit) in enumerate(
-            [(margin_z, nz), (margin_y, ny), (margin_x, nx)]
-        ):
+        for dim, (margin, limit) in enumerate([(margin_z, nz), (margin_y, ny), (margin_x, nx)]):
             # Lower boundary
             mask_low = new_positions[:, dim] < margin
             velocities[mask_low, dim] = np.abs(velocities[mask_low, dim])
@@ -261,9 +257,7 @@ def generate_moving_particles(
             # Upper boundary
             mask_high = new_positions[:, dim] > limit - margin
             velocities[mask_high, dim] = -np.abs(velocities[mask_high, dim])
-            new_positions[mask_high, dim] = (
-                2 * (limit - margin) - new_positions[mask_high, dim]
-            )
+            new_positions[mask_high, dim] = 2 * (limit - margin) - new_positions[mask_high, dim]
 
         positions[:, t, :] = new_positions
 

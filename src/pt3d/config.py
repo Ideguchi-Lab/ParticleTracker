@@ -91,14 +91,10 @@ class DetectionConfig(BaseModel):
         Use trackpy's built-in preprocessing (bandpass filter)
     """
 
-    diameter: tuple[int, int, int] = Field(
-        description="Feature diameter (dz, dy, dx) - must be odd integers"
-    )
+    diameter: tuple[int, int, int] = Field(description="Feature diameter (dz, dy, dx) - must be odd integers")
     minmass: float = Field(default=0.0, ge=0, description="Minimum integrated brightness")
     threshold: float | None = Field(default=None, description="Noise floor threshold")
-    separation: tuple[int, int, int] | None = Field(
-        default=None, description="Minimum separation between features"
-    )
+    separation: tuple[int, int, int] | None = Field(default=None, description="Minimum separation between features")
     invert: bool = Field(default=False, description="Invert for dark particles")
     preprocess: bool = Field(default=True, description="Use trackpy preprocessing")
 
@@ -119,9 +115,7 @@ class DetectionConfig(BaseModel):
 
     @field_validator("separation")
     @classmethod
-    def check_separation_positive(
-        cls, v: tuple[int, int, int] | None
-    ) -> tuple[int, int, int] | None:
+    def check_separation_positive(cls, v: tuple[int, int, int] | None) -> tuple[int, int, int] | None:
         """Validate that separation values are positive if provided."""
         if v is not None:
             for i, s in enumerate(v):
@@ -149,16 +143,10 @@ class TrackingConfig(BaseModel):
         Reduce search_range by this factor in adaptive search
     """
 
-    search_range_um: float = Field(
-        gt=0, description="Maximum displacement per frame in µm"
-    )
+    search_range_um: float = Field(gt=0, description="Maximum displacement per frame in µm")
     memory: int = Field(default=0, ge=0, description="Frames to remember lost particles")
-    adaptive_stop: float | None = Field(
-        default=None, description="Adaptive search stop threshold"
-    )
-    adaptive_step: float | None = Field(
-        default=None, description="Adaptive search step factor"
-    )
+    adaptive_stop: float | None = Field(default=None, description="Adaptive search stop threshold")
+    adaptive_step: float | None = Field(default=None, description="Adaptive search step factor")
 
     @model_validator(mode="after")
     def check_adaptive_params(self) -> "TrackingConfig":
@@ -180,12 +168,8 @@ class PostprocessConfig(BaseModel):
         Maximum allowed velocity in µm/frame (outlier filter)
     """
 
-    min_track_length: int = Field(
-        default=2, ge=1, description="Minimum track length in frames"
-    )
-    max_velocity_um: float | None = Field(
-        default=None, ge=0, description="Maximum velocity for outlier removal"
-    )
+    min_track_length: int = Field(default=2, ge=1, description="Minimum track length in frames")
+    max_velocity_um: float | None = Field(default=None, ge=0, description="Maximum velocity for outlier removal")
 
 
 class ExportConfig(BaseModel):
@@ -202,9 +186,7 @@ class ExportConfig(BaseModel):
     """
 
     output_dir: Path = Field(description="Output directory")
-    format: Literal["parquet", "csv"] = Field(
-        default="parquet", description="Output format"
-    )
+    format: Literal["parquet", "csv"] = Field(default="parquet", description="Output format")
     overwrite: bool = Field(default=False, description="Allow overwriting files")
 
 
@@ -226,9 +208,7 @@ class NapariConfig(BaseModel):
     image_name: str = Field(default="Volume", description="Image layer name")
     points_name: str = Field(default="Detections", description="Points layer name")
     tracks_name: str = Field(default="Tracks", description="Tracks layer name")
-    frame_range: tuple[int, int] | None = Field(
-        default=None, description="Frame range for subset display"
-    )
+    frame_range: tuple[int, int] | None = Field(default=None, description="Frame range for subset display")
 
 
 class PipelineConfig(BaseModel):

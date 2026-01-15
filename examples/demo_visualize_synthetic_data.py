@@ -215,9 +215,7 @@ def visualize_moving_particles(data: dict) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Visualize synthetic particle data using ilabvis"
-    )
+    parser = argparse.ArgumentParser(description="Visualize synthetic particle data using ilabvis")
     parser.add_argument(
         "--data",
         type=str,

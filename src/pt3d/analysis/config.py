@@ -41,10 +41,7 @@ class MSDConfig(BaseModel):
     ) -> tuple[float, float]:
         start, end = value
         if not (0.0 <= start < end <= 1.0):
-            msg = (
-                "fit_range_fraction must satisfy 0.0 <= start < end <= 1.0, "
-                f"got (start={start}, end={end})"
-            )
+            msg = f"fit_range_fraction must satisfy 0.0 <= start < end <= 1.0, got (start={start}, end={end})"
             raise ValueError(msg)
         return value
 

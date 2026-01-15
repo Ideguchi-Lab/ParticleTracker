@@ -24,9 +24,7 @@ class TestToNapariPoints:
         assert points.shape == (len(sample_detections), 4)
         assert points.dtype == np.float64
         # Check order is [frame, z, y, x]
-        np.testing.assert_array_equal(
-            points[:, 0], sample_detections["frame"].values
-        )
+        np.testing.assert_array_equal(points[:, 0], sample_detections["frame"].values)
 
     def test_3d_points(self, sample_detections):
         points = to_napari_points(sample_detections, include_frame=False)
@@ -157,18 +155,14 @@ class TestTracksVisualizationProperties:
         voxel_size = VoxelSize(z_um=0.8, y_um=0.2, x_um=0.2)
         stats = compute_track_stats(sample_tracks, voxel_size)
 
-        properties, color_by = tracks_visualization_properties(
-            sample_tracks, stats, color_by="length"
-        )
+        properties, color_by = tracks_visualization_properties(sample_tracks, stats, color_by="length")
 
         assert "length" in properties
         assert color_by == "length"
 
     def test_fallback_color_by(self, sample_tracks):
         # Request a property that doesn't exist without stats
-        _properties, color_by = tracks_visualization_properties(
-            sample_tracks, color_by="velocity"
-        )
+        _properties, color_by = tracks_visualization_properties(sample_tracks, color_by="velocity")
 
         # Should fallback to track_id
         assert color_by == "track_id"

@@ -386,7 +386,6 @@ class TrackVisualizationWidget(QWidget):
         self._setup_ui()
 
     def _setup_ui(self) -> None:
-
         layout = QVBoxLayout()
 
         # Display mode section
@@ -543,9 +542,7 @@ class TrackVisualizationWidget(QWidget):
             return
 
         # Compute max projection
-        proj_image, proj_tracks = compute_xy_max_projection(
-            self._original_image_data, self._current_tracks
-        )
+        proj_image, proj_tracks = compute_xy_max_projection(self._original_image_data, self._current_tracks)
 
         # Hide original layers
         for layer in self.viewer.layers:
@@ -726,9 +723,7 @@ class MainWidget(QWidget):
         layout.addStretch()
         self.setLayout(layout)
 
-    def _on_tracking_completed(
-        self, tracks: pd.DataFrame, voxel_size: VoxelSize
-    ) -> None:
+    def _on_tracking_completed(self, tracks: pd.DataFrame, voxel_size: VoxelSize) -> None:
         """Handle tracking completion to update visualization widget."""
         self.visualization_widget.set_tracks(tracks, voxel_size)
         self.status_label.setText(f"Tracking complete: {tracks['particle'].nunique()} tracks")

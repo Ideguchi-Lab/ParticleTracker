@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- User guide documentation (`docs/user_guide.md`)
+  - Step-by-step tutorial for real data analysis
+  - Working with different file formats
+  - Troubleshooting guide for common issues
+- Configuration reference documentation (`docs/configuration.md`)
+  - Parameter descriptions for core configuration classes
+  - Parameter tuning workflow guide
+  - Common scenarios with recommended settings
+- Enhanced README with documentation links and examples table
 - Brownian motion simulation module (`pt3d.synth.brownian`)
   - Fractional Brownian Motion (FBM) trajectory generation
   - Support for normal diffusion (H=0.5), subdiffusion (H<0.5), and superdiffusion (H>0.5)

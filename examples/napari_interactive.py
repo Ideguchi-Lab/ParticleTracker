@@ -17,6 +17,7 @@ from pathlib import Path
 
 import numpy as np
 
+
 def main() -> None:
     # Import napari (will fail if not installed)
     try:

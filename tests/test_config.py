@@ -79,9 +79,7 @@ class TestTrackingConfig:
 
     def test_adaptive_params_together(self):
         # Both must be provided or neither
-        config = TrackingConfig(
-            search_range_um=2.0, adaptive_stop=10.0, adaptive_step=0.5
-        )
+        config = TrackingConfig(search_range_um=2.0, adaptive_stop=10.0, adaptive_step=0.5)
         assert config.adaptive_stop == 10.0
 
     def test_adaptive_params_incomplete_rejected(self):
@@ -91,9 +89,7 @@ class TestTrackingConfig:
 
 class TestInputConfig:
     def test_valid_axis_order(self):
-        config = InputConfig(
-            axis_order="tzyx", voxel_size=VoxelSize(z_um=0.8, y_um=0.2, x_um=0.2)
-        )
+        config = InputConfig(axis_order="tzyx", voxel_size=VoxelSize(z_um=0.8, y_um=0.2, x_um=0.2))
         assert config.axis_order == "tzyx"
 
     def test_invalid_axis_rejected(self):
@@ -104,9 +100,7 @@ class TestInputConfig:
             )
 
     def test_case_insensitive_axis(self):
-        config = InputConfig(
-            axis_order="TZYX", voxel_size=VoxelSize(z_um=0.8, y_um=0.2, x_um=0.2)
-        )
+        config = InputConfig(axis_order="TZYX", voxel_size=VoxelSize(z_um=0.8, y_um=0.2, x_um=0.2))
         assert config.axis_order == "tzyx"
 
 

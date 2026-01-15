@@ -21,9 +21,7 @@ def synthetic_volume() -> np.ndarray:
     ]
 
     for pos in positions:
-        particle = generate_gaussian_particle(
-            shape, pos, sigma=(2.0, 3.0, 3.0), intensity=1.0
-        )
+        particle = generate_gaussian_particle(shape, pos, sigma=(2.0, 3.0, 3.0), intensity=1.0)
         volume += particle
 
     # Add small amount of noise

@@ -221,9 +221,7 @@ def tracks_visualization_properties(
         if "mean_velocity_um" in merged.columns:
             properties["velocity"] = merged["mean_velocity_um"].values.astype(np.float64)
         if "total_displacement_um" in merged.columns:
-            properties["displacement"] = merged["total_displacement_um"].values.astype(
-                np.float64
-            )
+            properties["displacement"] = merged["total_displacement_um"].values.astype(np.float64)
 
     # Map color_by to actual property name
     color_by_map = {
@@ -264,9 +262,7 @@ def merge_track_stats_to_tracks(
         return tracks
 
     # Select columns to merge (exclude particle as it's the key)
-    stat_cols = [
-        col for col in track_stats.columns if col != "particle" and col not in tracks.columns
-    ]
+    stat_cols = [col for col in track_stats.columns if col != "particle" and col not in tracks.columns]
     if not stat_cols:
         return tracks
 

@@ -273,9 +273,7 @@ def apply_boundary_conditions(
 
         elif mode == "periodic":
             # Wrap around
-            positions[:, :, dim] = (
-                (positions[:, :, dim] - lower) % range_width
-            ) + lower
+            positions[:, :, dim] = ((positions[:, :, dim] - lower) % range_width) + lower
 
         elif mode == "absorbing":
             # Clamp to boundaries
@@ -494,9 +492,7 @@ def generate_brownian_particles(
 
     # Convert voxel size to array for coordinate conversion
     if voxel_size is not None:
-        voxel_array = np.array(
-            [voxel_size.z_um, voxel_size.y_um, voxel_size.x_um], dtype=np.float64
-        )
+        voxel_array = np.array([voxel_size.z_um, voxel_size.y_um, voxel_size.x_um], dtype=np.float64)
     else:
         voxel_array = np.array([1.0, 1.0, 1.0], dtype=np.float64)
 
@@ -638,11 +634,7 @@ def generate_brownian_particles_from_config(
         )
 
         # Handle isotropic diffusion
-        d_tuple = (
-            (float(d_coeff), float(d_coeff), float(d_coeff))
-            if isinstance(d_coeff, int | float)
-            else d_coeff
-        )
+        d_tuple = (float(d_coeff), float(d_coeff), float(d_coeff)) if isinstance(d_coeff, int | float) else d_coeff
 
         # Calculate margins based on particle size
         if particle_type.shape == "gaussian":
@@ -702,9 +694,7 @@ def generate_brownian_particles_from_config(
             (margin_y, ny - margin_y),
             (margin_x, nx - margin_x),
         )
-        positions = apply_boundary_conditions(
-            positions, bounds, mode=config.boundary_mode
-        )
+        positions = apply_boundary_conditions(positions, bounds, mode=config.boundary_mode)
 
         # Generate particle images
         for t in range(n_frames):
