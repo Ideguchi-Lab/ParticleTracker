@@ -8,6 +8,7 @@ the results.
 
 - [Prerequisites](#prerequisites)
 - [Tutorial: Your First Tracking Analysis](#tutorial-your-first-tracking-analysis)
+- [3D Visualization](#3d-visualization)
 - [Working with Real Data](#working-with-real-data)
 - [Troubleshooting](#troubleshooting)
 
@@ -265,6 +266,52 @@ stats.to_csv(output_dir / "track_stats.csv", index=False)
 print(f"Results saved to: {output_dir}")
 ```
 
+### Step 9: Interactive 3D Visualization
+
+For enhanced 3D visualization with volume rendering and interactive controls:
+
+```python
+import napari
+from pt3d.napari import Track3DVisualizationWidget
+from pt3d.napari.layers import get_napari_scale, to_napari_points, to_napari_tracks
+
+viewer = napari.Viewer()
+
+# Get scale for 4D data (t, z, y, x)
+scale = get_napari_scale(voxel_size, include_time=True)
+
+# Add image with scale
+viewer.add_image(frames, name="Volume", scale=scale)
+
+# Add detections as points
+points = to_napari_points(detections, include_frame=True)
+viewer.add_points(points, name="Detections", size=5, face_color="yellow", scale=scale)
+
+# Add tracks
+track_data = to_napari_tracks(filtered_tracks)
+viewer.add_tracks(track_data, name="Tracks", scale=scale)
+
+# Add 3D visualization widget
+widget_3d = Track3DVisualizationWidget(viewer)
+widget_3d.set_data(
+    image=frames,
+    tracks=filtered_tracks,
+    voxel_size=voxel_size,
+)
+viewer.window.add_dock_widget(widget_3d, name="3D Visualization")
+
+# Enable 3D mode
+widget_3d.enter_3d_mode()
+
+napari.run()
+```
+
+The 3D widget provides:
+- **Volume Rendering**: MIP, attenuated MIP, translucent, ISO modes
+- **Track Display**: Color by Track ID, Time, Length, or Velocity
+- **Camera Presets**: XY, XZ, YZ, and Isometric views
+- **Time Navigation**: Slider and playback controls
+
 ### Complete Example
 
 Here's the full pipeline in one script:
@@ -309,6 +356,156 @@ print(f"Linked into {tracks['particle'].nunique()} tracks")
 filtered = filter_stubs(tracks, min_length=5)
 stats = compute_track_stats(filtered, voxel_size)
 print(f"Final: {len(stats)} tracks, mean length {stats['length'].mean():.1f}")
+```
+
+---
+
+## 3D Visualization
+
+The `Track3DVisualizationWidget` provides interactive 3D visualization of particles,
+tracks, and volume data in napari.
+
+### Using the 3D Widget
+
+You can add the widget programmatically or via napari's plugin menu:
+
+```python
+# Option 1: Programmatic
+from pt3d.napari import Track3DVisualizationWidget
+
+widget_3d = Track3DVisualizationWidget(viewer)
+viewer.window.add_dock_widget(widget_3d, name="3D Visualization")
+
+# Option 2: Via napari menu
+# Plugins > 3D Track Visualization
+```
+
+### Volume Rendering Modes
+
+The widget supports four rendering modes for volume data:
+
+| Mode | Description | Best For |
+|------|-------------|----------|
+| **MIP** | Maximum Intensity Projection | Bright particles, overview |
+| **Attenuated MIP** | MIP with depth attenuation | Depth perception |
+| **Translucent** | Semi-transparent rendering | Internal structures |
+| **ISO** | Isosurface rendering | Cell boundaries, surfaces |
+
+```python
+# Configure volume rendering
+from pt3d.config import Volume3DConfig
+
+vol_config = Volume3DConfig(
+    rendering_mode="attenuated_mip",  # or "mip", "translucent", "iso"
+    contrast_percentile_low=1.0,      # Lower percentile for contrast
+    contrast_percentile_high=99.0,    # Upper percentile for contrast
+    gamma=1.0,                        # Gamma correction
+    opacity=0.5,                      # Layer opacity
+)
+```
+
+### Track Display Options
+
+Tracks can be colored by different properties:
+
+| Color By | Description |
+|----------|-------------|
+| **Track ID** | Each track gets a unique color |
+| **Time** | Color changes along trajectory |
+| **Length** | Longer tracks are brighter |
+| **Velocity** | Faster particles are brighter |
+
+```python
+from pt3d.config import Track3DConfig
+
+track_config = Track3DConfig(
+    colormap="turbo",           # Colormap: turbo, viridis, plasma, magma, hsv
+    color_by="velocity",        # track_id, time, length, velocity
+    tail_length=10,             # Number of frames in trail
+    show_current_position=True, # Highlight current position
+)
+```
+
+### Camera Presets
+
+Quickly switch between standard viewing angles:
+
+| Preset | View |
+|--------|------|
+| **XY** | Top-down (looking along Z) |
+| **XZ** | Front view (looking along Y) |
+| **YZ** | Side view (looking along X) |
+| **Isometric** | 3D perspective view |
+
+### Time Navigation
+
+The widget provides time controls:
+- **Frame slider**: Manually navigate through time
+- **Play/Stop**: Automatic playback
+- **Speed control**: Adjust playback FPS (1-60)
+
+### Complete 3D Workflow Example
+
+```python
+import warnings
+from pathlib import Path
+
+# Suppress napari internal warnings
+warnings.filterwarnings("ignore", message="invalid value encountered in cast")
+
+import napari
+from pt3d.synth import generate_moving_particles
+from pt3d.config import VoxelSize, DetectionConfig, TrackingConfig
+from pt3d.detect import detect_batch
+from pt3d.track import link_detections
+from pt3d.postprocess import filter_stubs, compute_track_stats
+from pt3d.napari import Track3DVisualizationWidget
+from pt3d.napari.layers import get_napari_scale, to_napari_points, to_napari_tracks
+
+# Generate test data
+frames, _ = generate_moving_particles(
+    shape=(20, 32, 64, 64),
+    n_particles=10,
+    particle_sigma=(2.0, 3.0, 3.0),
+    velocity_range=(0.5, 2.0),
+    seed=42,
+)
+
+# Configure and run pipeline
+voxel_size = VoxelSize(z_um=0.4, y_um=0.2, x_um=0.2)
+detect_config = DetectionConfig(diameter=(5, 9, 9), minmass=1.2)
+track_config = TrackingConfig(search_range_um=2.0, memory=2)
+
+detections = detect_batch(frames, detect_config)
+tracks = link_detections(detections, track_config, voxel_size)
+filtered_tracks = filter_stubs(tracks, min_length=5)
+
+# Create napari viewer
+viewer = napari.Viewer()
+scale = get_napari_scale(voxel_size, include_time=True)
+
+# Add layers
+viewer.add_image(frames, name="Volume", scale=scale)
+viewer.add_points(
+    to_napari_points(detections, include_frame=True),
+    name="Detections",
+    size=5,
+    face_color="yellow",
+    scale=scale,
+)
+viewer.add_tracks(
+    to_napari_tracks(filtered_tracks),
+    name="Tracks",
+    scale=scale,
+)
+
+# Add 3D widget and enable 3D mode
+widget_3d = Track3DVisualizationWidget(viewer)
+widget_3d.set_data(image=frames, tracks=filtered_tracks, voxel_size=voxel_size)
+viewer.window.add_dock_widget(widget_3d, name="3D Visualization")
+widget_3d.enter_3d_mode()
+
+napari.run()
 ```
 
 ---

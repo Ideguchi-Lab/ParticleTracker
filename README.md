@@ -8,6 +8,7 @@ A Python library for 3D+t particle detection and tracking in microscopy data, us
 - **Frame-to-Frame Tracking**: Link detections across time frames to form trajectories
 - **Anisotropy Correction**: Handle different z vs xy resolution with coordinate scaling
 - **napari Integration**: Visualize results interactively with napari plugin
+- **3D Visualization**: Interactive 3D volume rendering with track overlay
 - **Reproducibility**: Save configurations and run metadata for reproducible analysis
 
 ## Installation
@@ -58,12 +59,34 @@ print(f"Found {tracks['particle'].nunique()} tracks")
 
 ## napari Plugin
 
-Launch napari and use the pt3d widget from the Plugins menu:
+Launch napari and use the pt3d widgets from the Plugins menu:
 
 ```python
 import napari
 viewer = napari.Viewer()
-# Plugins > 3D Particle Tracker
+# Plugins > 3D Particle Tracker      (detection & tracking)
+# Plugins > 3D Track Visualization   (3D visualization)
+napari.run()
+```
+
+### 3D Visualization
+
+For interactive 3D visualization with volume rendering:
+
+```python
+import napari
+from pt3d.napari import Track3DVisualizationWidget
+
+viewer = napari.Viewer()
+viewer.add_image(frames)
+viewer.add_tracks(tracks_data)
+
+# Add 3D widget
+widget_3d = Track3DVisualizationWidget(viewer)
+widget_3d.set_data(image=frames, tracks=tracks, voxel_size=voxel_size)
+viewer.window.add_dock_widget(widget_3d)
+widget_3d.enter_3d_mode()
+
 napari.run()
 ```
 
@@ -79,6 +102,7 @@ See the [examples/](examples/) directory for working code:
 
 | Example | Description |
 |---------|-------------|
+| [starter_guide.py](examples/starter_guide.py) | Complete tutorial with 3D visualization |
 | [tracking_pipeline.py](examples/tracking_pipeline.py) | Complete detection → tracking workflow |
 | [basic_detection.py](examples/basic_detection.py) | Single frame and batch detection |
 | [napari_interactive.py](examples/napari_interactive.py) | Interactive visualization with napari |
