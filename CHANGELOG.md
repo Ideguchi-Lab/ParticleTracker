@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Pydantic configuration models for Brownian simulation (`BrownianSimulationConfig`)
 - YAML configuration support for simulation parameters
 - Demo script for Brownian motion (`examples/demo_brownian_motion.py`)
+- YAML configuration runner script (`examples/run_from_yaml.py`)
+  - Run tracking pipeline directly from YAML configuration file
+  - Optional input path and output directory overrides
 
 ## [0.1.0] - 2025-12-25
 
