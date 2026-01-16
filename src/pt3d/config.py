@@ -51,13 +51,13 @@ class InputConfig(BaseModel):
     dtype : str | None
         Optional dtype to convert input data to
     voxel_size : VoxelSize
-        Physical voxel dimensions (required for µm-based tracking)
+        Physical voxel dimensions (required for um-based tracking)
     """
 
     path: Path | None = None
     axis_order: str = Field(default="tzyx", description="Axis order of input data")
     dtype: str | None = None
-    voxel_size: VoxelSize = Field(description="Physical voxel dimensions in µm")
+    voxel_size: VoxelSize = Field(description="Physical voxel dimensions in um")
 
     @field_validator("axis_order")
     @classmethod
@@ -147,7 +147,7 @@ class DetectionConfig(BaseModel):
         return self
 
     def get_diameter_pixels(self, voxel_size: VoxelSize) -> tuple[int, int, int]:
-        """Get diameter in pixels, converting from µm if necessary.
+        """Get diameter in pixels, converting from um if necessary.
 
         Parameters
         ----------
@@ -182,7 +182,7 @@ class DetectionConfig(BaseModel):
 class TrackingConfig(BaseModel):
     """Tracking (linking) parameters for trackpy.
 
-    All distance parameters are in micrometers (µm).
+    All distance parameters are in micrometers (um).
 
     Attributes
     ----------
@@ -196,7 +196,7 @@ class TrackingConfig(BaseModel):
         Reduce search_range by this factor in adaptive search
     """
 
-    search_range_um: float = Field(gt=0, description="Maximum displacement per frame in µm")
+    search_range_um: float = Field(gt=0, description="Maximum displacement per frame in um")
     memory: int = Field(default=0, ge=0, description="Frames to remember lost particles")
     adaptive_stop: float | None = Field(default=None, description="Adaptive search stop threshold")
     adaptive_step: float | None = Field(default=None, description="Adaptive search step factor")
@@ -218,7 +218,7 @@ class PostprocessConfig(BaseModel):
     min_track_length : int
         Minimum number of frames for a valid track
     max_velocity_um : float | None
-        Maximum allowed velocity in µm/frame (outlier filter)
+        Maximum allowed velocity in um/frame (outlier filter)
     """
 
     min_track_length: int = Field(default=2, ge=1, description="Minimum track length in frames")

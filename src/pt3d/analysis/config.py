@@ -127,7 +127,7 @@ class HistogramConfig(BaseModel):
     ----------
     n_bins : int
         Number of histogram bins.
-    log_scale_D : bool
+    log_scale_d : bool
         Use log scale for D (x-axis).
     show_stats : bool
         Show mean/median annotations.

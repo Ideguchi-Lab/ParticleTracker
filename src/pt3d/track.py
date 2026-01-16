@@ -75,10 +75,10 @@ def link_detections(
         # Apply coordinate scaling for isotropic distance calculation
         df = apply_coordinate_scaling(df, voxel_size)
 
-        # Convert search_range from µm to scaled units
+        # Convert search_range from um to scaled units
         search_range_scaled = search_range_um_to_scaled(config.search_range_um, voxel_size)
 
-        logger.debug(f"Linking with search_range={config.search_range_um}µm ({search_range_scaled:.2f} scaled units)")
+        logger.debug(f"Linking with search_range={config.search_range_um}um ({search_range_scaled:.2f} scaled units)")
 
         # Use scaled coordinates for linking
         pos_columns = ["z_scaled", "y_scaled", "x_scaled"]

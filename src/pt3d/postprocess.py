@@ -60,17 +60,20 @@ def compute_velocities(
 ) -> pd.DataFrame:
     """Compute instantaneous velocities for each track point.
 
+    Velocity is computed as displacement divided by frame difference,
+    properly handling gaps when particles temporarily disappear (memory).
+
     Parameters
     ----------
     tracks : pd.DataFrame
         DataFrame with 'particle', 'frame', 'z', 'y', 'x' columns
     voxel_size : VoxelSize
-        Physical voxel dimensions for µm conversion
+        Physical voxel dimensions for um conversion
 
     Returns
     -------
     pd.DataFrame
-        DataFrame with additional 'velocity_um' column (µm/frame)
+        DataFrame with additional 'velocity_um' column (um/frame)
     """
     if len(tracks) == 0:
         result = tracks.copy()
@@ -84,11 +87,17 @@ def compute_velocities(
     df["dy_um"] = df.groupby("particle")["y"].diff() * voxel_size.y_um
     df["dx_um"] = df.groupby("particle")["x"].diff() * voxel_size.x_um
 
-    # Compute 3D velocity magnitude
-    df["velocity_um"] = np.sqrt(df["dz_um"] ** 2 + df["dy_um"] ** 2 + df["dx_um"] ** 2)
+    # Compute frame difference to handle gaps (memory)
+    df["dframe"] = df.groupby("particle")["frame"].diff()
+
+    # Compute 3D displacement magnitude
+    displacement_um = np.sqrt(df["dz_um"] ** 2 + df["dy_um"] ** 2 + df["dx_um"] ** 2)
+
+    # Velocity = displacement / frame_difference (um/frame)
+    df["velocity_um"] = displacement_um / df["dframe"]
 
     # Clean up intermediate columns
-    df = df.drop(columns=["dz_um", "dy_um", "dx_um"])
+    df = df.drop(columns=["dz_um", "dy_um", "dx_um", "dframe"])
 
     return df
 
@@ -108,7 +117,7 @@ def filter_by_velocity(
     tracks : pd.DataFrame
         DataFrame with 'particle', 'frame', 'z', 'y', 'x' columns
     max_velocity_um : float
-        Maximum allowed velocity in µm/frame
+        Maximum allowed velocity in um/frame
     voxel_size : VoxelSize
         Physical voxel dimensions
 
@@ -150,9 +159,9 @@ def compute_track_stats(
         - particle: track ID
         - length: number of frames
         - duration: last_frame - first_frame
-        - mean_velocity_um: average velocity in µm/frame
-        - max_velocity_um: maximum velocity in µm/frame
-        - total_displacement_um: start-to-end distance in µm
+        - mean_velocity_um: average velocity in um/frame
+        - max_velocity_um: maximum velocity in um/frame
+        - total_displacement_um: start-to-end distance in um
     """
     if len(tracks) == 0:
         return pd.DataFrame(

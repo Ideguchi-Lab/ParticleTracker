@@ -144,7 +144,7 @@ def detect_batch(
                 msg = "voxel_size is required when using diameter_um"
                 raise ProcessingError(msg)
             diameter = list(config.get_diameter_pixels(voxel_size))
-            logger.info(f"Converted diameter_um={config.diameter_um} µm to pixels: {diameter}")
+            logger.info(f"Converted diameter_um={config.diameter_um} um to pixels: {diameter}")
         else:
             assert config.diameter is not None
             diameter = list(config.diameter)
