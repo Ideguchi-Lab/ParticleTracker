@@ -77,8 +77,13 @@ class DetectionConfig(BaseModel):
 
     Attributes
     ----------
-    diameter : tuple[int, int, int]
-        Feature diameter (dz, dy, dx) - must be odd integers
+    diameter : tuple[int, int, int] | None
+        Feature diameter (dz, dy, dx) in pixels - must be odd integers.
+        Either diameter or diameter_um must be specified.
+    diameter_um : float | None
+        Feature diameter in micrometers (isotropic).
+        Will be converted to pixels using voxel_size.
+        Either diameter or diameter_um must be specified.
     minmass : float
         Minimum integrated brightness for a particle
     threshold : float | None
@@ -91,7 +96,10 @@ class DetectionConfig(BaseModel):
         Use trackpy's built-in preprocessing (bandpass filter)
     """
 
-    diameter: tuple[int, int, int] = Field(description="Feature diameter (dz, dy, dx) - must be odd integers")
+    diameter: tuple[int, int, int] | None = Field(
+        default=None, description="Feature diameter (dz, dy, dx) in pixels - must be odd integers"
+    )
+    diameter_um: float | None = Field(default=None, gt=0, description="Feature diameter in micrometers (isotropic)")
     minmass: float = Field(default=0.0, ge=0, description="Minimum integrated brightness")
     threshold: float | None = Field(default=None, description="Noise floor threshold")
     separation: tuple[int, int, int] | None = Field(default=None, description="Minimum separation between features")
@@ -100,8 +108,10 @@ class DetectionConfig(BaseModel):
 
     @field_validator("diameter")
     @classmethod
-    def check_diameter_odd(cls, v: tuple[int, int, int]) -> tuple[int, int, int]:
+    def check_diameter_odd(cls, v: tuple[int, int, int] | None) -> tuple[int, int, int] | None:
         """Validate that all diameter values are odd integers."""
+        if v is None:
+            return v
         for i, d in enumerate(v):
             if d % 2 == 0:
                 axis = ["z", "y", "x"][i]
@@ -124,6 +134,49 @@ class DetectionConfig(BaseModel):
                     msg = f"Separation for {axis} axis must be positive, got {s}"
                     raise ValueError(msg)
         return v
+
+    @model_validator(mode="after")
+    def check_diameter_specified(self) -> DetectionConfig:
+        """Validate that either diameter or diameter_um is specified."""
+        if self.diameter is None and self.diameter_um is None:
+            msg = "Either 'diameter' (pixels) or 'diameter_um' (micrometers) must be specified"
+            raise ValueError(msg)
+        if self.diameter is not None and self.diameter_um is not None:
+            msg = "Specify either 'diameter' or 'diameter_um', not both"
+            raise ValueError(msg)
+        return self
+
+    def get_diameter_pixels(self, voxel_size: VoxelSize) -> tuple[int, int, int]:
+        """Get diameter in pixels, converting from µm if necessary.
+
+        Parameters
+        ----------
+        voxel_size : VoxelSize
+            Physical voxel dimensions for conversion
+
+        Returns
+        -------
+        tuple[int, int, int]
+            Diameter in pixels (dz, dy, dx), guaranteed to be odd integers
+        """
+        if self.diameter is not None:
+            return self.diameter
+
+        # Convert from um to pixels
+        assert self.diameter_um is not None
+        dz = self.diameter_um / voxel_size.z_um
+        dy = self.diameter_um / voxel_size.y_um
+        dx = self.diameter_um / voxel_size.x_um
+
+        # Round to nearest odd integer (minimum 1)
+        def to_odd(v: float) -> int:
+            rounded = max(1, round(v))
+            if rounded % 2 == 0:
+                # Choose the nearest odd (round up)
+                return rounded + 1
+            return rounded
+
+        return (to_odd(dz), to_odd(dy), to_odd(dx))
 
 
 class TrackingConfig(BaseModel):

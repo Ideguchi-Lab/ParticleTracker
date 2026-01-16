@@ -51,7 +51,7 @@ class PipelineResult:
     detections: pd.DataFrame
     tracks: pd.DataFrame
     track_stats: pd.DataFrame
-    config: "PipelineConfig"
+    config: PipelineConfig
     input_info: dict[str, Any] = field(default_factory=dict)
     start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
@@ -86,7 +86,7 @@ class PipelineResult:
 
 def run_pipeline(
     data: NDArray[np.floating] | Path | str,
-    config: "PipelineConfig",
+    config: PipelineConfig,
 ) -> PipelineResult:
     """Run the complete tracking pipeline.
 
@@ -139,7 +139,7 @@ def run_pipeline(
 
     # Detection
     logger.info("Running detection...")
-    detections = detect_batch(frames, config.detection)
+    detections = detect_batch(frames, config.detection, voxel_size=config.input.voxel_size)
     logger.info(f"Detected {len(detections)} particles")
 
     # Tracking
@@ -181,7 +181,7 @@ def run_pipeline(
 
 def export_results(
     result: PipelineResult,
-    config: "PipelineConfig",
+    config: PipelineConfig,
 ) -> dict[str, Path]:
     """Export all results to files.
 

@@ -14,7 +14,7 @@ from pt3d.exceptions import ProcessingError
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-    from pt3d.config import DetectionConfig
+    from pt3d.config import DetectionConfig, VoxelSize
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 def detect_frame(
     volume: NDArray[np.floating],
     config: DetectionConfig,
+    voxel_size: VoxelSize | None = None,
 ) -> pd.DataFrame:
     """Detect particles in a single 3D volume.
 
@@ -33,6 +34,8 @@ def detect_frame(
         3D array with shape (z, y, x)
     config : DetectionConfig
         Detection parameters
+    voxel_size : VoxelSize | None
+        Physical voxel dimensions (required if diameter_um is used)
 
     Returns
     -------
@@ -50,8 +53,16 @@ def detect_frame(
         raise ProcessingError(msg)
 
     try:
-        # trackpy expects diameter as list for 3D
-        diameter = list(config.diameter)
+        # Get diameter in pixels (convert from um if necessary)
+        if config.diameter_um is not None:
+            if voxel_size is None:
+                msg = "voxel_size is required when using diameter_um"
+                raise ProcessingError(msg)
+            diameter = list(config.get_diameter_pixels(voxel_size))
+            logger.debug(f"Converted diameter_um={config.diameter_um} to pixels: {diameter}")
+        else:
+            assert config.diameter is not None
+            diameter = list(config.diameter)
 
         # Prepare separation if provided
         separation = list(config.separation) if config.separation else None
@@ -82,6 +93,7 @@ def detect_batch(
     frames: NDArray[np.floating],
     config: DetectionConfig,
     frame_range: tuple[int, int] | None = None,
+    voxel_size: VoxelSize | None = None,
 ) -> pd.DataFrame:
     """Detect particles in multiple frames.
 
@@ -96,6 +108,8 @@ def detect_batch(
     frame_range : tuple[int, int] | None
         Optional (start, end) frame range for subset processing
         End is exclusive (like Python slicing)
+    voxel_size : VoxelSize | None
+        Physical voxel dimensions (required if diameter_um is used)
 
     Returns
     -------
@@ -124,8 +138,17 @@ def detect_batch(
         logger.info(f"Processing frames {start} to {end}")
 
     try:
-        # trackpy expects diameter as list for 3D
-        diameter = list(config.diameter)
+        # Get diameter in pixels (convert from um if necessary)
+        if config.diameter_um is not None:
+            if voxel_size is None:
+                msg = "voxel_size is required when using diameter_um"
+                raise ProcessingError(msg)
+            diameter = list(config.get_diameter_pixels(voxel_size))
+            logger.info(f"Converted diameter_um={config.diameter_um} µm to pixels: {diameter}")
+        else:
+            assert config.diameter is not None
+            diameter = list(config.diameter)
+
         separation = list(config.separation) if config.separation else None
 
         features = tp.batch(
@@ -157,6 +180,7 @@ def detect_single_frame(
     frames: NDArray[np.floating],
     frame_index: int,
     config: DetectionConfig,
+    voxel_size: VoxelSize | None = None,
 ) -> pd.DataFrame:
     """Detect particles in a single frame from a 4D array.
 
@@ -170,6 +194,8 @@ def detect_single_frame(
         Index of the frame to process
     config : DetectionConfig
         Detection parameters
+    voxel_size : VoxelSize | None
+        Physical voxel dimensions (required if diameter_um is used)
 
     Returns
     -------
@@ -181,7 +207,7 @@ def detect_single_frame(
         raise ProcessingError(msg)
 
     volume = frames[frame_index]
-    features = detect_frame(volume, config)
+    features = detect_frame(volume, config, voxel_size)
 
     # Add frame column
     if len(features) > 0:

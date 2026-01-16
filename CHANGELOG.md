@@ -43,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - YAML configuration runner script (`examples/run_from_yaml.py`)
   - Run tracking pipeline directly from YAML configuration file
   - Optional input path and output directory overrides
+- Support for specifying particle diameter in micrometers (`diameter_um`)
+  - Alternative to pixel-based `diameter` parameter
+  - Automatically converted to pixels using `voxel_size`
+  - Enables consistent physical-unit configuration
 
 ## [0.1.0] - 2025-12-25
 
