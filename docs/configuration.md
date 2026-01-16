@@ -13,6 +13,7 @@ with practical advice on tuning them for your data.
 - [Postprocessing Parameters](#postprocessing-parameters)
 - [Export Parameters](#export-parameters)
 - [Napari Parameters](#napari-parameters)
+- [3D Visualization Parameters](#3d-visualization-parameters)
 - [Diffusion Analysis Parameters](#diffusion-analysis-parameters)
 - [Parameter Tuning Workflow](#parameter-tuning-workflow)
 - [Common Scenarios](#common-scenarios)
@@ -433,6 +434,129 @@ scale = get_napari_scale(voxel_size, include_time=True)
 # Convert data for napari
 points = to_napari_points(detections, include_frame=True)
 tracks = to_napari_tracks(tracks_df)
+```
+
+---
+
+## 3D Visualization Parameters
+
+Configuration classes for the `Track3DVisualizationWidget`.
+
+### Volume3DConfig
+
+Configuration for 3D volume rendering.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `rendering_mode` | Literal | "mip" | Volume rendering mode |
+| `contrast_percentile_low` | float | 1.0 | Lower percentile for contrast (0-100) |
+| `contrast_percentile_high` | float | 99.0 | Upper percentile for contrast (0-100) |
+| `gamma` | float | 1.0 | Gamma correction value |
+| `opacity` | float | 0.5 | Layer opacity (0-1) |
+| `iso_threshold` | float | 0.5 | ISO threshold relative to data range (0-1) |
+| `colormap` | str | "gray" | Colormap for volume rendering |
+
+#### rendering_mode
+
+Available volume rendering modes:
+
+| Mode | Description | Best For |
+|------|-------------|----------|
+| `"mip"` | Maximum Intensity Projection | Bright particles, quick overview |
+| `"attenuated_mip"` | MIP with depth attenuation | Better depth perception |
+| `"translucent"` | Semi-transparent rendering | Viewing internal structures |
+| `"iso"` | Isosurface rendering | Cell boundaries, surfaces |
+
+```python
+from pt3d.config import Volume3DConfig
+
+# For viewing bright particles with depth
+vol_config = Volume3DConfig(
+    rendering_mode="attenuated_mip",
+    contrast_percentile_low=1.0,
+    contrast_percentile_high=99.5,
+    gamma=0.9,
+    opacity=0.6,
+)
+```
+
+### Track3DConfig
+
+Configuration for 3D track visualization.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `colormap` | str | "turbo" | Track colormap |
+| `color_by` | Literal | "track_id" | Property for coloring |
+| `tail_length` | int | 10 | Trail length in frames |
+| `show_current_position` | bool | True | Highlight current position |
+
+#### color_by
+
+Available coloring options:
+
+| Value | Description |
+|-------|-------------|
+| `"track_id"` | Each track gets a unique color |
+| `"time"` | Color changes along trajectory |
+| `"length"` | Longer tracks are brighter |
+| `"velocity"` | Faster particles are brighter |
+
+```python
+from pt3d.config import Track3DConfig
+
+# Color by velocity with long trails
+track_config = Track3DConfig(
+    colormap="viridis",
+    color_by="velocity",
+    tail_length=20,
+    show_current_position=True,
+)
+```
+
+### Points3DConfig
+
+Configuration for 3D detection points visualization.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `size` | float | 5.0 | Point size in display units |
+| `face_color` | str | "yellow" | Point face color |
+| `opacity` | float | 0.8 | Point opacity (0-1) |
+| `show_current_frame_only` | bool | True | Show only current frame points |
+
+```python
+from pt3d.config import Points3DConfig
+
+# Large red points
+points_config = Points3DConfig(
+    size=10.0,
+    face_color="red",
+    opacity=0.9,
+    show_current_frame_only=True,
+)
+```
+
+### Camera Presets
+
+Predefined camera angles accessible via `get_camera_preset()`:
+
+| Preset | Angles | Description |
+|--------|--------|-------------|
+| `"xy"` | (0, 0, 90) | Top-down view (looking along Z) |
+| `"xz"` | (0, -90, 90) | Front view (looking along Y) |
+| `"yz"` | (90, 0, 0) | Side view (looking along X) |
+| `"isometric"` | (30, 45, 0) | 3D isometric perspective |
+
+```python
+from pt3d.napari.layers import get_camera_preset, CAMERA_PRESETS
+
+# Get preset info
+preset = get_camera_preset("isometric")
+print(preset)  # {'angles': (30, 45, 0), 'name': 'Isometric', ...}
+
+# Apply to viewer
+viewer.camera.angles = preset["angles"]
 ```
 
 ---
