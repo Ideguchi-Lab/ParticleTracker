@@ -13,8 +13,8 @@ from pt3d.config import (
     TrackingConfig,
     VoxelSize,
 )
-from pt3d.detect import detect_batch, detect_frame
-from pt3d.pipeline import PipelineResult, run_pipeline
+from pt3d.detect import detect_batch, detect_frame, detect_streaming
+from pt3d.pipeline import PipelineResult, run_pipeline, run_pipeline_streaming
 from pt3d.track import link_detections
 
 __version__ = "0.1.0"
@@ -31,9 +31,11 @@ __all__ = [
     # Detection
     "detect_frame",
     "detect_batch",
+    "detect_streaming",
     # Tracking
     "link_detections",
     # Pipeline
     "run_pipeline",
+    "run_pipeline_streaming",
     "PipelineResult",
 ]
