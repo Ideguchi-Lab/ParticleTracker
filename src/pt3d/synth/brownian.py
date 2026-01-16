@@ -445,7 +445,7 @@ def generate_brownian_particles(
         Note: alpha = 2H
     voxel_size : VoxelSize | None
         Physical voxel dimensions for coordinate conversion.
-        If None, diffusion_coefficient is interpreted in pixels^2/frame.
+        If None, assumes 1 um/pixel isotropic (coordinates in um = pixels).
     intensity : float
         Peak intensity of particles. Default is 1.0.
     particle_sigma : tuple[float, float, float]

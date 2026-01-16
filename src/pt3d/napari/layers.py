@@ -193,7 +193,8 @@ def tracks_visualization_properties(
     track_stats : pd.DataFrame | None
         Optional track statistics from compute_track_stats()
     color_by : str
-        Property to use for coloring: "track_id", "time", "length"
+        Property to use for coloring: "track_id", "time", "length",
+        "velocity", or "displacement" (latter two require track_stats)
 
     Returns
     -------

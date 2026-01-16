@@ -27,7 +27,7 @@ def normalize_axis_order(
     data : NDArray[np.floating]
         Input array with arbitrary axis order
     axis_order : str
-        Current axis order as string (e.g., "zyxt", "xyzc")
+        Current axis order as string (e.g., "zyxt", "tzyx")
         Only 't', 'z', 'y', 'x' axes are supported
 
     Returns
@@ -83,7 +83,7 @@ def apply_coordinate_scaling(
 ) -> pd.DataFrame:
     """Scale coordinates for isotropic distance calculation.
 
-    Scales z, y, x coordinates to physical units (µm) and then normalizes
+    Scales z, y, x coordinates to physical units (um) and then normalizes
     to the finest resolution (typically x_um) for isotropic distance calculation.
 
     Parameters
@@ -161,7 +161,7 @@ def search_range_um_to_scaled(
     search_range_um: float,
     voxel_size: VoxelSize,
 ) -> float:
-    """Convert search range from µm to scaled coordinate units.
+    """Convert search range from um to scaled coordinate units.
 
     The scaled coordinate system uses the finest resolution as the unit.
 
@@ -179,7 +179,7 @@ def search_range_um_to_scaled(
     """
     # Find the finest resolution
     min_um = min(voxel_size.z_um, voxel_size.y_um, voxel_size.x_um)
-    # Convert µm to scaled units (where 1 unit = min_um µm)
+    # Convert um to scaled units (where 1 unit = min_um um)
     return search_range_um / min_um
 
 

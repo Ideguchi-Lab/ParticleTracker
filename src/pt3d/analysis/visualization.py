@@ -70,7 +70,7 @@ def plot_tracks_3d(
 
     if config.color_by == "D":
         color_values = [result.msd_per_particle[pid].D for pid in particle_ids]
-        color_label = "D (um²/s)"
+        color_label = "D (um^2/s)"
     elif config.color_by == "alpha":
         color_values = [result.msd_per_particle[pid].alpha for pid in particle_ids]
         color_label = "α"
@@ -206,7 +206,7 @@ def plot_diffusion_histograms(
     else:
         ax_d.hist(d_values, bins=config.n_bins, edgecolor="black", alpha=0.7)
 
-    ax_d.set_xlabel("D (um²/s)")
+    ax_d.set_xlabel("D (um^2/s)")
     ax_d.set_ylabel("Count")
     ax_d.set_title("Diffusion Coefficient Distribution")
 
@@ -297,7 +297,7 @@ def plot_msd_loglog(
 
     if len(result.msd_per_particle) == 0:
         ax.set_xlabel("Time lag (s)")
-        ax.set_ylabel("MSD (um²)")
+        ax.set_ylabel("MSD (um^2)")
         ax.set_title("MSD vs Time (no data)")
         return fig, ax
 
@@ -359,7 +359,7 @@ def plot_msd_loglog(
 
     # Labels and title
     ax.set_xlabel("Time lag (s)")
-    ax.set_ylabel("MSD (um²)")
+    ax.set_ylabel("MSD (um^2)")
 
     mean_alpha = result.mean_alpha
     ax.set_title(f"MSD vs Time (mean α = {mean_alpha:.2f})")
@@ -424,14 +424,14 @@ def create_analysis_report(
             bins = np.logspace(log_min, log_max, 21)
             ax_d.hist(d_positive, bins=bins, edgecolor="black", alpha=0.7)
             ax_d.set_xscale("log")
-    ax_d.set_xlabel("D (um²/s)")
+    ax_d.set_xlabel("D (um^2/s)")
     ax_d.set_ylabel("Count")
     ax_d.set_title("Diffusion Coefficient Distribution")
 
     # Add statistics
     if len(result.particle_results) > 0:
         summary = result.summary()
-        stats_text = f"Mean D: {summary['D_mean']:.4f} um²/s\nMedian D: {summary['D_median']:.4f} um²/s"
+        stats_text = f"Mean D: {summary['D_mean']:.4f} um^2/s\nMedian D: {summary['D_median']:.4f} um^2/s"
         ax_d.annotate(
             stats_text,
             xy=(0.95, 0.95),

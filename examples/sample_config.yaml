@@ -15,10 +15,17 @@ input:
     x_um: 0.2   # X pixel size
 
 detection:
-  # Feature diameter in pixels (dz, dy, dx)
+  # Feature diameter - specify EITHER diameter (pixels) OR diameter_um (micrometers)
+
+  # Option 1: diameter in pixels (dz, dy, dx)
   # MUST be odd integers
-  # Approximate the full width at half maximum of particles
+  # Approximate the full width at half maximum (FWHM) of particles
   diameter: [5, 9, 9]
+
+  # Option 2: diameter in micrometers (isotropic)
+  # Will be automatically converted to pixels using voxel_size
+  # Uncomment below and comment out 'diameter' above to use:
+  # diameter_um: 1.8
 
   # Minimum integrated brightness for a particle
   # Increase to reject dim particles and noise
