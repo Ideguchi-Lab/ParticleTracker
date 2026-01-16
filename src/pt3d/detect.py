@@ -176,6 +176,79 @@ def detect_batch(
         raise ProcessingError(msg) from e
 
 
+def detect_streaming(
+    frame_iterator,
+    config: DetectionConfig,
+    voxel_size: VoxelSize | None = None,
+) -> pd.DataFrame:
+    """Detect particles from a streaming iterator (memory efficient).
+
+    Uses trackpy.batch with an iterator/generator for memory-efficient
+    processing of large datasets that don't fit in memory.
+
+    Parameters
+    ----------
+    frame_iterator : Iterable[NDArray[np.floating]]
+        Iterator or generator yielding 3D volumes with shape (z, y, x).
+        Can be a generator function that yields frames one at a time.
+    config : DetectionConfig
+        Detection parameters
+    voxel_size : VoxelSize | None
+        Physical voxel dimensions (required if diameter_um is used)
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns [frame, z, y, x, mass, size, ...]
+        Returns empty DataFrame if no particles found
+
+    Raises
+    ------
+    ProcessingError
+        If detection fails
+
+    Notes
+    -----
+    This function is designed for large datasets. The iterator yields
+    one 3D volume at a time, keeping memory usage low.
+    trackpy.batch automatically handles frame indexing when given an iterator.
+    """
+    try:
+        # Get diameter in pixels (convert from um if necessary)
+        if config.diameter_um is not None:
+            if voxel_size is None:
+                msg = "voxel_size is required when using diameter_um"
+                raise ProcessingError(msg)
+            diameter = list(config.get_diameter_pixels(voxel_size))
+            logger.info(f"Converted diameter_um={config.diameter_um} um to pixels: {diameter}")
+        else:
+            assert config.diameter is not None
+            diameter = list(config.diameter)
+
+        separation = list(config.separation) if config.separation else None
+
+        logger.info("Running streaming detection...")
+        features = tp.batch(
+            frame_iterator,
+            diameter=diameter,
+            minmass=config.minmass,
+            threshold=config.threshold,
+            separation=separation,
+            invert=config.invert,
+            preprocess=config.preprocess,
+        )
+
+        if features is None or len(features) == 0:
+            return pd.DataFrame(columns=["frame", "z", "y", "x", "mass", "size", "ecc", "signal", "raw_mass", "ep"])
+
+        logger.info(f"Detected {len(features)} particles across {features['frame'].nunique()} frames")
+        return features
+
+    except Exception as e:
+        msg = f"Streaming detection failed: {e}"
+        raise ProcessingError(msg) from e
+
+
 def detect_single_frame(
     frames: NDArray[np.floating],
     frame_index: int,

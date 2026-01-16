@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import pandas as pd
 
-from pt3d.detect import detect_batch
+from pt3d.detect import detect_batch, detect_streaming
 from pt3d.exceptions import ProcessingError
 from pt3d.export import export_config, export_detections, export_run_info, export_tracks
 from pt3d.io import load_data
@@ -176,6 +176,96 @@ def run_pipeline(
         export_results(result, config)
 
     logger.info(f"Pipeline completed in {result.duration_seconds:.2f}s")
+    return result
+
+
+def run_pipeline_streaming(
+    frame_iterator,
+    config: PipelineConfig,
+    n_frames: int | None = None,
+) -> PipelineResult:
+    """Run the tracking pipeline with streaming input (memory efficient).
+
+    This version accepts an iterator/generator instead of a 4D array,
+    allowing processing of datasets that don't fit in memory.
+
+    Parameters
+    ----------
+    frame_iterator : Iterable[NDArray[np.floating]]
+        Iterator or generator yielding 3D volumes with shape (z, y, x).
+    config : PipelineConfig
+        Pipeline configuration
+    n_frames : int | None
+        Number of frames (for logging). If None, not reported.
+
+    Returns
+    -------
+    PipelineResult
+        Results including detections, tracks, and statistics
+
+    Raises
+    ------
+    ProcessingError
+        If any step fails
+
+    Notes
+    -----
+    The frame iterator is consumed only once during detection.
+    After detection, tracking and postprocessing work on the
+    DataFrame of detections which requires less memory.
+    """
+    start_time = datetime.now(timezone.utc)
+    logger.info("Starting streaming tracking pipeline")
+
+    input_info = {
+        "source": "iterator",
+        "n_frames": n_frames,
+    }
+
+    if n_frames:
+        logger.info(f"Processing {n_frames} frames in streaming mode")
+    else:
+        logger.info("Processing frames in streaming mode")
+
+    # Detection (streaming)
+    logger.info("Running streaming detection...")
+    detections = detect_streaming(frame_iterator, config.detection, voxel_size=config.input.voxel_size)
+    logger.info(f"Detected {len(detections)} particles")
+
+    # Tracking
+    logger.info("Running tracking...")
+    tracks = link_detections(
+        detections,
+        config.tracking,
+        config.input.voxel_size,
+    )
+    logger.info(f"Linked into {tracks['particle'].nunique()} tracks")
+
+    # Postprocessing
+    logger.info("Running postprocessing...")
+    tracks = postprocess(tracks, config.postprocess, config.input.voxel_size)
+    logger.info(f"After postprocessing: {tracks['particle'].nunique()} tracks")
+
+    # Compute statistics
+    track_stats = compute_track_stats(tracks, config.input.voxel_size)
+
+    end_time = datetime.now(timezone.utc)
+
+    result = PipelineResult(
+        detections=detections,
+        tracks=tracks,
+        track_stats=track_stats,
+        config=config,
+        input_info=input_info,
+        start_time=start_time,
+        end_time=end_time,
+    )
+
+    # Export if configured
+    if config.export is not None:
+        export_results(result, config)
+
+    logger.info(f"Streaming pipeline completed in {result.duration_seconds:.2f}s")
     return result
 
 
