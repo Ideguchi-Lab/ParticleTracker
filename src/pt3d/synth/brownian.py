@@ -362,7 +362,8 @@ def fit_diffusion_exponent(
     -------
     tuple[float, float]
         (alpha, D_apparent) where alpha is the diffusion exponent
-        and D_apparent is the apparent diffusion coefficient (assuming 3D).
+        and D_apparent is the generalized diffusion coefficient in the
+        model MSD = 6*D*t^alpha (units: um^2/s^alpha).
 
     Examples
     --------
@@ -405,7 +406,7 @@ def fit_diffusion_exponent(
     amplitude = np.exp(log_amplitude)
 
     # For 3D diffusion: MSD = 6*D*t^alpha
-    # So D_apparent = A / 6
+    # So D_apparent = A / 6 (units: um^2/s^alpha)
     d_apparent = amplitude / 6
 
     return float(alpha), float(d_apparent)

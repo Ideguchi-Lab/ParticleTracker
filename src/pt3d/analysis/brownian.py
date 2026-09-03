@@ -2,7 +2,7 @@
 
 This module provides functions to analyze diffusion properties from
 tracked particle trajectories, including MSD computation and
-diffusion coefficient extraction.
+generalized diffusion coefficient extraction.
 """
 
 from __future__ import annotations
@@ -35,7 +35,8 @@ class ParticleDiffusionResult:
     particle : int
         Particle ID from tracking.
     D : float
-        Diffusion coefficient in um^2/s.
+        Generalized diffusion coefficient from MSD = 6*D*t^alpha
+        with units um^2/s^alpha.
     alpha : float
         Diffusion exponent (1.0 for normal diffusion).
     n_frames : int
@@ -88,14 +89,14 @@ class DiffusionAnalysisResult:
 
     @property
     def mean_d(self) -> float:
-        """Mean diffusion coefficient."""
+        """Mean generalized diffusion coefficient."""
         if len(self.particle_results) == 0:
             return 0.0
         return float(self.particle_results["D"].mean())
 
     @property
     def std_d(self) -> float:
-        """Standard deviation of diffusion coefficient."""
+        """Standard deviation of generalized diffusion coefficient."""
         if len(self.particle_results) == 0:
             return 0.0
         return float(self.particle_results["D"].std())
@@ -312,7 +313,7 @@ def analyze_single_track(
     Returns
     -------
     tuple[float, float, NDArray[np.float64]]
-        (diffusion_coefficient, diffusion_exponent, msd_array)
+        (generalized_diffusion_coefficient, diffusion_exponent, msd_array)
     """
     n_frames = len(positions)
 
@@ -413,7 +414,7 @@ def analyze_diffusion(
     Returns
     -------
     DiffusionAnalysisResult
-        Complete analysis results including per-particle D and alpha.
+        Complete analysis results including per-particle generalized D and alpha.
 
     Examples
     --------
@@ -504,7 +505,7 @@ def analyze_diffusion(
 
     logger.info(
         f"Analyzed {len(particle_results)} particles: "
-        f"D={particle_results['D'].mean():.4f} +/- {particle_results['D'].std():.4f} um^2/s, "
+        f"D={particle_results['D'].mean():.4f} +/- {particle_results['D'].std():.4f} um^2/s^alpha, "
         f"alpha={particle_results['alpha'].mean():.2f} +/- {particle_results['alpha'].std():.2f}"
     )
 

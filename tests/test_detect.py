@@ -1,10 +1,11 @@
 """Tests for detection module."""
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from pt3d.config import DetectionConfig
-from pt3d.detect import detect_batch, detect_frame, detect_single_frame
+from pt3d.detect import detect_batch, detect_frame, detect_single_frame, detect_streaming
 from pt3d.exceptions import ProcessingError
 
 
@@ -84,6 +85,47 @@ class TestDetectBatch:
 
         with pytest.raises(ProcessingError):
             detect_batch(volumes, config, frame_range=(5, 3))
+
+
+class TestDetectStreaming:
+    def test_processes_each_volume_and_preserves_source_frame_numbers(self, monkeypatch):
+        volumes = [
+            np.full((2, 3, 4), fill_value=frame, dtype=np.float64)
+            for frame in range(3)
+        ]
+        located_features = [
+            pd.DataFrame({"z": [1.0], "y": [2.0], "x": [3.0]}),
+            pd.DataFrame(columns=["z", "y", "x"]),
+            pd.DataFrame({"z": [4.0, 5.0], "y": [6.0, 7.0], "x": [8.0, 9.0]}),
+        ]
+        seen_frames = []
+
+        def fake_locate(volume, **_kwargs):
+            seen_frames.append(int(volume[0, 0, 0]))
+            return located_features[len(seen_frames) - 1]
+
+        monkeypatch.setattr("pt3d.detect.tp.locate", fake_locate)
+        config = DetectionConfig(diameter=(3, 3, 3))
+
+        detections = detect_streaming(iter(volumes), config)
+
+        assert seen_frames == [0, 1, 2]
+        np.testing.assert_array_equal(detections["frame"].to_numpy(), [0, 2, 2])
+        np.testing.assert_allclose(
+            detections[["z", "y", "x"]].to_numpy(),
+            [[1.0, 2.0, 3.0], [4.0, 6.0, 8.0], [5.0, 7.0, 9.0]],
+        )
+
+    def test_rejects_non_3d_volume_at_its_source_frame(self, monkeypatch):
+        monkeypatch.setattr(
+            "pt3d.detect.tp.locate",
+            lambda _volume, **_kwargs: pd.DataFrame(columns=["z", "y", "x"]),
+        )
+        volumes = [np.zeros((2, 3, 4)), np.zeros((3, 4))]
+        config = DetectionConfig(diameter=(3, 3, 3))
+
+        with pytest.raises(ProcessingError, match=r"Volume must be 3D, got 2D at frame 1"):
+            detect_streaming(iter(volumes), config)
 
 
 class TestDetectSingleFrame:
