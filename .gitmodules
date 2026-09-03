@@ -1,3 +1,3 @@
 [submodule "submodules/ilabvis"]
 	path = submodules/ilabvis
-	url = /home/fukushima-ilab/git-repos/ilab-develop/ilabvis
+	url = https://github.com/Ideguchi-Lab/ilabvis.git

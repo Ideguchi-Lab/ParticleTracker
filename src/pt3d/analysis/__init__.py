@@ -2,13 +2,17 @@
 
 This module provides tools for analyzing diffusion properties from
 particle tracking results, including MSD computation, diffusion
-coefficient extraction, and visualization.
+coefficient extraction (MSD = 6*D*t^alpha), and visualization.
 
 Examples
 --------
 >>> from pt3d import run_pipeline, PipelineConfig
 >>> from pt3d.analysis import analyze_diffusion, DiffusionAnalysisConfig
->>> from pt3d.analysis import plot_tracks_3d, plot_diffusion_histograms
+>>> from pt3d.analysis import (
+...     plot_tracks_3d,
+...     plot_diffusion_histograms,
+...     plot_diffusion_scatter,
+... )
 >>>
 >>> # Run tracking pipeline
 >>> pipeline_config = PipelineConfig(...)  # configure as needed
@@ -18,12 +22,13 @@ Examples
 >>> analysis_config = DiffusionAnalysisConfig(dt=0.1, min_track_length=10)
 >>> analysis = analyze_diffusion(result, analysis_config)
 >>>
->>> print(f"Mean D = {analysis.mean_d:.4f} um^2/s")
+>>> print(f"Mean D = {analysis.mean_d:.4f} um^2/s^alpha")
 >>> print(f"Mean alpha = {analysis.mean_alpha:.2f}")
 >>>
 >>> # Visualize
 >>> fig, ax = plot_tracks_3d(analysis)
 >>> fig, (ax_d, ax_a) = plot_diffusion_histograms(analysis)
+>>> fig, (ax_sc, ax_ha) = plot_diffusion_scatter(analysis)
 """
 
 from pt3d.analysis.brownian import (
@@ -38,6 +43,7 @@ from pt3d.analysis.brownian import (
 )
 from pt3d.analysis.config import (
     DiffusionAnalysisConfig,
+    DiffusionScatterConfig,
     HistogramConfig,
     MSDConfig,
     MSDPlotConfig,
@@ -46,6 +52,7 @@ from pt3d.analysis.config import (
 from pt3d.analysis.visualization import (
     create_analysis_report,
     plot_diffusion_histograms,
+    plot_diffusion_scatter,
     plot_msd_loglog,
     plot_tracks_3d,
 )
@@ -53,6 +60,7 @@ from pt3d.analysis.visualization import (
 __all__ = [
     "DiffusionAnalysisConfig",
     "DiffusionAnalysisResult",
+    "DiffusionScatterConfig",
     "HistogramConfig",
     "MSDConfig",
     "MSDPlotConfig",
@@ -65,6 +73,7 @@ __all__ = [
     "create_analysis_report",
     "interpolate_gaps",
     "plot_diffusion_histograms",
+    "plot_diffusion_scatter",
     "plot_msd_loglog",
     "plot_tracks_3d",
     "tracks_to_positions",

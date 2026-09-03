@@ -1,8 +1,8 @@
 """Visualization functions for diffusion analysis results.
 
 This module provides matplotlib-based visualization for diffusion
-analysis results including 3D trajectory plots, histograms, and
-MSD log-log plots.
+analysis results including 3D trajectory plots, histograms, scatter
+plots, and MSD log-log plots.
 """
 
 from __future__ import annotations
@@ -15,14 +15,19 @@ from matplotlib.axes import Axes
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import Normalize
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
 
 if TYPE_CHECKING:
     from pt3d.analysis.brownian import DiffusionAnalysisResult
     from pt3d.analysis.config import (
+        DiffusionScatterConfig,
         HistogramConfig,
         MSDPlotConfig,
         TrackVisualizationConfig,
     )
+
+D_ALPHA_LABEL = r"$D_\alpha$ ($\mu$m$^2$/s$^\alpha$)"
+D_ALPHA_MILLI_LABEL = r"$D_\alpha$ ($10^{-3}\,\mu$m$^2$/s$^\alpha$)"
 
 
 def plot_tracks_3d(
@@ -59,9 +64,9 @@ def plot_tracks_3d(
         fig = ax.get_figure()
 
     if len(result.positions_um) == 0:
-        ax.set_xlabel("X (um)")
-        ax.set_ylabel("Y (um)")
-        ax.set_zlabel("Z (um)")
+        ax.set_xlabel(r"X ($\mu$m)")
+        ax.set_ylabel(r"Y ($\mu$m)")
+        ax.set_zlabel(r"Z ($\mu$m)")
         ax.set_title("No tracks to display")
         return fig, ax
 
@@ -70,7 +75,7 @@ def plot_tracks_3d(
 
     if config.color_by == "D":
         color_values = [result.msd_per_particle[pid].D for pid in particle_ids]
-        color_label = "D (um^2/s)"
+        color_label = D_ALPHA_LABEL
     elif config.color_by == "alpha":
         color_values = [result.msd_per_particle[pid].alpha for pid in particle_ids]
         color_label = "α"
@@ -137,10 +142,44 @@ def plot_tracks_3d(
         )
 
     # Set labels
-    ax.set_xlabel("X (um)")
-    ax.set_ylabel("Y (um)")
-    ax.set_zlabel("Z (um)")
-    ax.set_title(f"3D Trajectories (colored by {color_label})")
+    if config.show_labels:
+        label_fontsize = config.label_fontsize
+        if label_fontsize is not None:
+            ax.set_xlabel(r"X ($\mu$m)", fontsize=label_fontsize)
+            ax.set_ylabel(r"Y ($\mu$m)", fontsize=label_fontsize)
+            ax.set_zlabel(r"Z ($\mu$m)", fontsize=label_fontsize)
+        else:
+            ax.set_xlabel(r"X ($\mu$m)")
+            ax.set_ylabel(r"Y ($\mu$m)")
+            ax.set_zlabel(r"Z ($\mu$m)")
+
+    # Set title
+    if config.show_title:
+        title = f"3D Trajectories (colored by {color_label})"
+        if config.title_fontsize is not None:
+            ax.set_title(title, fontsize=config.title_fontsize)
+        else:
+            ax.set_title(title)
+
+    # Set tick font size
+    if config.tick_fontsize is not None:
+        ax.tick_params(labelsize=config.tick_fontsize)
+
+    # Set equal aspect ratio based on data range
+    x_lim = ax.get_xlim()
+    y_lim = ax.get_ylim()
+    z_lim = ax.get_zlim()
+    x_range = x_lim[1] - x_lim[0]
+    y_range = y_lim[1] - y_lim[0]
+    z_range = z_lim[1] - z_lim[0]
+    max_range = max(x_range, y_range, z_range)
+    if max_range > 0:
+        ax.set_box_aspect([x_range / max_range, y_range / max_range, z_range / max_range])
+
+    # Limit tick count to avoid text overlap on small-range axes
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=config.tick_nbins))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=config.tick_nbins))
+    ax.zaxis.set_major_locator(MaxNLocator(nbins=config.tick_nbins))
 
     # Set view angle
     ax.view_init(elev=config.elevation, azim=config.azimuth)
@@ -150,7 +189,11 @@ def plot_tracks_3d(
         sm = ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
         cbar = fig.colorbar(sm, ax=ax, shrink=0.6, pad=0.1)
-        cbar.set_label(color_label)
+        if config.colorbar_fontsize is not None:
+            cbar.set_label(color_label, fontsize=config.colorbar_fontsize)
+            cbar.ax.tick_params(labelsize=config.colorbar_fontsize)
+        else:
+            cbar.set_label(color_label)
 
     return fig, ax
 
@@ -206,9 +249,27 @@ def plot_diffusion_histograms(
     else:
         ax_d.hist(d_values, bins=config.n_bins, edgecolor="black", alpha=0.7)
 
-    ax_d.set_xlabel("D (um^2/s)")
-    ax_d.set_ylabel("Count")
-    ax_d.set_title("Diffusion Coefficient Distribution")
+    # Set labels and title for D histogram
+    label_fontsize = config.label_fontsize
+    title_fontsize = config.title_fontsize
+    stats_fontsize = config.stats_fontsize if config.stats_fontsize is not None else 9
+
+    if config.show_labels:
+        if label_fontsize is not None:
+            ax_d.set_xlabel(D_ALPHA_LABEL, fontsize=label_fontsize)
+            ax_d.set_ylabel("Count", fontsize=label_fontsize)
+        else:
+            ax_d.set_xlabel(D_ALPHA_LABEL)
+            ax_d.set_ylabel("Count")
+
+    if config.show_title:
+        if title_fontsize is not None:
+            ax_d.set_title("Generalized Diffusion Coefficient Distribution", fontsize=title_fontsize)
+        else:
+            ax_d.set_title("Generalized Diffusion Coefficient Distribution")
+
+    if config.tick_fontsize is not None:
+        ax_d.tick_params(labelsize=config.tick_fontsize)
 
     # Add statistics annotation for D
     if config.show_stats and len(d_values) > 0:
@@ -221,19 +282,35 @@ def plot_diffusion_histograms(
             xycoords="axes fraction",
             ha="right",
             va="top",
-            fontsize=9,
+            fontsize=stats_fontsize,
             bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
         )
 
     # Plot alpha histogram
     ax_alpha.hist(alpha_values, bins=config.n_bins, edgecolor="black", alpha=0.7)
-    ax_alpha.set_xlabel("α (diffusion exponent)")
-    ax_alpha.set_ylabel("Count")
-    ax_alpha.set_title("Diffusion Exponent Distribution")
+
+    # Set labels and title for alpha histogram
+    if config.show_labels:
+        if label_fontsize is not None:
+            ax_alpha.set_xlabel("α (diffusion exponent)", fontsize=label_fontsize)
+            ax_alpha.set_ylabel("Count", fontsize=label_fontsize)
+        else:
+            ax_alpha.set_xlabel("α (diffusion exponent)")
+            ax_alpha.set_ylabel("Count")
+
+    if config.show_title:
+        if title_fontsize is not None:
+            ax_alpha.set_title("Diffusion Exponent Distribution", fontsize=title_fontsize)
+        else:
+            ax_alpha.set_title("Diffusion Exponent Distribution")
+
+    if config.tick_fontsize is not None:
+        ax_alpha.tick_params(labelsize=config.tick_fontsize)
 
     # Add reference line at alpha=1 (normal diffusion)
-    ax_alpha.axvline(x=1.0, color="red", linestyle="--", linewidth=1.5, label="α=1")
-    ax_alpha.legend()
+    if config.show_alpha_reference_line:
+        ax_alpha.axvline(x=1.0, color="red", linestyle="--", linewidth=1.5, label="α=1")
+        ax_alpha.legend()
 
     # Add statistics annotation for alpha
     if config.show_stats and len(alpha_values) > 0:
@@ -246,12 +323,173 @@ def plot_diffusion_histograms(
             xycoords="axes fraction",
             ha="right",
             va="top",
-            fontsize=9,
+            fontsize=stats_fontsize,
             bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
         )
 
     fig.tight_layout()
     return fig, (ax_d, ax_alpha)
+
+
+def plot_diffusion_scatter(
+    result: DiffusionAnalysisResult,
+    config: DiffusionScatterConfig | None = None,
+) -> tuple[Figure, tuple[Axes, Axes]]:
+    """Plot D-alpha scatter with marginal histograms.
+
+    Creates a joint plot layout:
+    - Main scatter axis: D (x) vs alpha (y)
+    - Right marginal histogram: alpha distribution
+
+    Parameters
+    ----------
+    result : DiffusionAnalysisResult
+        Analysis result containing particle statistics.
+    config : DiffusionScatterConfig | None
+        Scatter configuration.
+
+    Returns
+    -------
+    tuple[Figure, tuple[Axes, Axes]]
+        Figure and (ax_scatter, ax_hist_alpha) axes.
+    """
+    from pt3d.analysis.config import DiffusionScatterConfig
+
+    if config is None:
+        config = DiffusionScatterConfig()
+
+    fig = plt.figure(figsize=config.figsize, constrained_layout=True)
+    grid = fig.add_gridspec(
+        1,
+        2,
+        width_ratios=(4.0, 1.4),
+        wspace=0.05,
+    )
+    ax_scatter = fig.add_subplot(grid[0, 0])
+    ax_hist_alpha = fig.add_subplot(grid[0, 1], sharey=ax_scatter)
+
+    label_fontsize = config.label_fontsize
+    title_fontsize = config.title_fontsize
+    stats_fontsize = config.stats_fontsize if config.stats_fontsize is not None else 9
+
+    if len(result.particle_results) == 0:
+        if config.show_labels:
+            if label_fontsize is not None:
+                ax_scatter.set_xlabel(D_ALPHA_MILLI_LABEL, fontsize=label_fontsize)
+                ax_scatter.set_ylabel("α (diffusion exponent)", fontsize=label_fontsize)
+            else:
+                ax_scatter.set_xlabel(D_ALPHA_MILLI_LABEL)
+                ax_scatter.set_ylabel("α (diffusion exponent)")
+
+        ax_scatter.set_title("D vs α Scatter (no data)")
+        ax_hist_alpha.set_title("α Histogram (no data)")
+        return fig, (ax_scatter, ax_hist_alpha)
+
+    d_values = result.particle_results["D"].to_numpy()
+    alpha_values = result.particle_results["alpha"].to_numpy()
+
+    valid_mask = np.isfinite(d_values) & np.isfinite(alpha_values)
+    d_values = d_values[valid_mask]
+    alpha_values = alpha_values[valid_mask]
+
+    if len(d_values) == 0:
+        if config.show_labels:
+            if label_fontsize is not None:
+                ax_scatter.set_xlabel(D_ALPHA_MILLI_LABEL, fontsize=label_fontsize)
+                ax_scatter.set_ylabel("α (diffusion exponent)", fontsize=label_fontsize)
+            else:
+                ax_scatter.set_xlabel(D_ALPHA_MILLI_LABEL)
+                ax_scatter.set_ylabel("α (diffusion exponent)")
+
+        ax_scatter.set_title("D vs α Scatter (no valid data)")
+        return fig, (ax_scatter, ax_hist_alpha)
+
+    d_scale = 1e3
+    d_values_scaled = d_values * d_scale
+
+    ax_scatter.scatter(
+        d_values_scaled,
+        alpha_values,
+        s=config.scatter_marker_size,
+        facecolors=config.scatter_facecolor,
+        edgecolors=config.scatter_edgecolor,
+        linewidths=config.scatter_linewidth,
+        alpha=config.scatter_alpha,
+    )
+    ax_hist_alpha.hist(
+        alpha_values,
+        bins=config.n_bins,
+        orientation="horizontal",
+        color=config.hist_color,
+        edgecolor=config.hist_edgecolor,
+        alpha=config.hist_alpha,
+    )
+
+    # Keep marginal panel compact by hiding redundant y tick labels.
+    ax_hist_alpha.tick_params(axis="y", labelleft=False)
+
+    if config.show_alpha_reference_line:
+        ax_scatter.axhline(y=1.0, color="red", linestyle="--", linewidth=1.2)
+        ax_hist_alpha.axhline(y=1.0, color="red", linestyle="--", linewidth=1.0)
+
+    # Add padding when all values are identical so points/bars are visible.
+    d_min = float(d_values_scaled.min())
+    d_max = float(d_values_scaled.max())
+    alpha_min = float(alpha_values.min())
+    alpha_max = float(alpha_values.max())
+
+    d_margin = 0.05 * (d_max - d_min) if d_max > d_min else 0.1
+    alpha_margin = 0.05 * (alpha_max - alpha_min) if alpha_max > alpha_min else 0.1
+    x_upper = d_max + d_margin
+    y_upper = alpha_max + alpha_margin
+    ax_scatter.set_xlim(0.0, x_upper if x_upper > 0 else 1.0)
+    y_offset = min(0.03, max(0.01, 0.05 * y_upper)) if y_upper > 0 else 0.02
+    ax_scatter.set_ylim(-y_offset, y_upper if y_upper > 0 else 1.0)
+
+    if config.show_labels:
+        if label_fontsize is not None:
+            ax_scatter.set_xlabel(D_ALPHA_MILLI_LABEL, fontsize=label_fontsize)
+            ax_scatter.set_ylabel("α (diffusion exponent)", fontsize=label_fontsize)
+            ax_hist_alpha.set_xlabel("Count", fontsize=label_fontsize)
+        else:
+            ax_scatter.set_xlabel(D_ALPHA_MILLI_LABEL)
+            ax_scatter.set_ylabel("α (diffusion exponent)")
+            ax_hist_alpha.set_xlabel("Count")
+
+    if config.show_title:
+        title = "Diffusion Exponent vs Generalized Diffusion Coefficient"
+        if title_fontsize is not None:
+            ax_scatter.set_title(title, fontsize=title_fontsize)
+        else:
+            ax_scatter.set_title(title)
+
+    if config.tick_fontsize is not None:
+        for axis in (ax_scatter, ax_hist_alpha):
+            axis.tick_params(labelsize=config.tick_fontsize)
+
+    if config.show_stats:
+        mean_d = np.mean(d_values)
+        median_d = np.median(d_values)
+        mean_d_scaled = mean_d * d_scale
+        median_d_scaled = median_d * d_scale
+        mean_alpha = np.mean(alpha_values)
+        median_alpha = np.median(alpha_values)
+        stats_text = (
+            f"n = {len(d_values)}\n"
+            f"Mean Dα (10^-3): {mean_d_scaled:.2f}\nMedian Dα (10^-3): {median_d_scaled:.2f}\n"
+            f"Mean α: {mean_alpha:.2f}\nMedian α: {median_alpha:.2f}"
+        )
+        ax_scatter.annotate(
+            stats_text,
+            xy=(0.03, 0.97),
+            xycoords="axes fraction",
+            ha="left",
+            va="top",
+            fontsize=stats_fontsize,
+            bbox={"boxstyle": "round", "facecolor": "wheat", "alpha": 0.5},
+        )
+
+    return fig, (ax_scatter, ax_hist_alpha)
 
 
 def plot_msd_loglog(
@@ -297,7 +535,7 @@ def plot_msd_loglog(
 
     if len(result.msd_per_particle) == 0:
         ax.set_xlabel("Time lag (s)")
-        ax.set_ylabel("MSD (um^2)")
+        ax.set_ylabel(r"MSD ($\mu$m$^2$)")
         ax.set_title("MSD vs Time (no data)")
         return fig, ax
 
@@ -358,13 +596,32 @@ def plot_msd_loglog(
     ax.set_yscale("log")
 
     # Labels and title
-    ax.set_xlabel("Time lag (s)")
-    ax.set_ylabel("MSD (um^2)")
+    label_fontsize = config.label_fontsize
+    if config.show_labels:
+        if label_fontsize is not None:
+            ax.set_xlabel("Time lag (s)", fontsize=label_fontsize)
+            ax.set_ylabel(r"MSD ($\mu$m$^2$)", fontsize=label_fontsize)
+        else:
+            ax.set_xlabel("Time lag (s)")
+            ax.set_ylabel(r"MSD ($\mu$m$^2$)")
 
-    mean_alpha = result.mean_alpha
-    ax.set_title(f"MSD vs Time (mean α = {mean_alpha:.2f})")
+    if config.show_title:
+        mean_alpha = result.mean_alpha
+        title = f"MSD vs Time (mean α = {mean_alpha:.2f})"
+        if config.title_fontsize is not None:
+            ax.set_title(title, fontsize=config.title_fontsize)
+        else:
+            ax.set_title(title)
 
-    ax.legend(loc="upper left")
+    if config.tick_fontsize is not None:
+        ax.tick_params(labelsize=config.tick_fontsize)
+
+    if config.show_legend:
+        if config.legend_fontsize is not None:
+            ax.legend(loc="upper left", fontsize=config.legend_fontsize)
+        else:
+            ax.legend(loc="upper left")
+
     ax.grid(True, which="both", ls="-", alpha=0.3)
 
     return fig, ax
@@ -424,14 +681,17 @@ def create_analysis_report(
             bins = np.logspace(log_min, log_max, 21)
             ax_d.hist(d_positive, bins=bins, edgecolor="black", alpha=0.7)
             ax_d.set_xscale("log")
-    ax_d.set_xlabel("D (um^2/s)")
+    ax_d.set_xlabel(D_ALPHA_LABEL)
     ax_d.set_ylabel("Count")
-    ax_d.set_title("Diffusion Coefficient Distribution")
+    ax_d.set_title("Generalized Diffusion Coefficient Distribution")
 
     # Add statistics
     if len(result.particle_results) > 0:
         summary = result.summary()
-        stats_text = f"Mean D: {summary['D_mean']:.4f} um^2/s\nMedian D: {summary['D_median']:.4f} um^2/s"
+        stats_text = (
+            f"Mean Dα: {summary['D_mean']:.4f} " + r"$\mu$m$^2$/s$^\alpha$"
+            + f"\nMedian Dα: {summary['D_median']:.4f} " + r"$\mu$m$^2$/s$^\alpha$"
+        )
         ax_d.annotate(
             stats_text,
             xy=(0.95, 0.95),

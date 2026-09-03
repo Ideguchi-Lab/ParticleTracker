@@ -17,6 +17,7 @@ from pt3d.analysis.brownian import (
 )
 from pt3d.analysis.config import (
     DiffusionAnalysisConfig,
+    DiffusionScatterConfig,
     HistogramConfig,
     MSDPlotConfig,
     TrackVisualizationConfig,
@@ -24,6 +25,7 @@ from pt3d.analysis.config import (
 from pt3d.analysis.visualization import (
     create_analysis_report,
     plot_diffusion_histograms,
+    plot_diffusion_scatter,
     plot_msd_loglog,
     plot_tracks_3d,
 )
@@ -209,6 +211,73 @@ class TestPlotDiffusionHistograms:
 
         # Check that annotations exist
         assert len(ax_d.texts) > 0 or len(ax_d.patches) > 0
+        plt.close(fig)
+
+
+class TestPlotDiffusionScatter:
+    """Tests for plot_diffusion_scatter function."""
+
+    def test_creates_figure(self, sample_analysis_result):
+        """Test that scatter plot creates valid figure."""
+        fig, (ax_scatter, ax_hist_alpha) = plot_diffusion_scatter(sample_analysis_result)
+
+        assert fig is not None
+        assert ax_scatter is not None
+        assert ax_hist_alpha is not None
+        np.testing.assert_allclose(
+            ax_scatter.collections[0].get_offsets(),
+            [
+                [500.0, 0.9],
+                [800.0, 1.1],
+                [1200.0, 1.0],
+                [300.0, 0.7],
+                [1000.0, 1.2],
+            ],
+        )
+        plt.close(fig)
+
+    def test_labels(self, sample_analysis_result):
+        """Test that axes have proper labels."""
+        fig, (ax_scatter, _ax_hist_alpha) = plot_diffusion_scatter(sample_analysis_result)
+
+        assert "D" in ax_scatter.get_xlabel()
+        assert "α" in ax_scatter.get_ylabel() or "alpha" in ax_scatter.get_ylabel().lower()
+        plt.close(fig)
+
+    def test_alpha_reference_line(self, sample_analysis_result):
+        """Test that alpha=1 reference line is present."""
+        config = DiffusionScatterConfig(show_alpha_reference_line=True)
+        fig, (ax_scatter, _ax_hist_alpha) = plot_diffusion_scatter(
+            sample_analysis_result,
+            config=config,
+        )
+
+        np.testing.assert_allclose(ax_scatter.get_lines()[0].get_ydata(), [1.0, 1.0])
+        plt.close(fig)
+
+    def test_alpha_marginal_histogram(self, sample_analysis_result):
+        """Test that alpha marginal histogram contains bars."""
+        fig, (_ax_scatter, ax_hist_alpha) = plot_diffusion_scatter(sample_analysis_result)
+
+        assert sum(patch.get_width() for patch in ax_hist_alpha.patches) == 5
+        plt.close(fig)
+
+    def test_empty_result(self, empty_analysis_result):
+        """Test with empty result."""
+        fig, (ax_scatter, _ax_hist_alpha) = plot_diffusion_scatter(empty_analysis_result)
+
+        assert "no data" in ax_scatter.get_title().lower()
+        plt.close(fig)
+
+    def test_stats_annotation(self, sample_analysis_result):
+        """Test statistics annotation."""
+        config = DiffusionScatterConfig(show_stats=True)
+        fig, (ax_scatter, _ax_hist_alpha) = plot_diffusion_scatter(
+            sample_analysis_result,
+            config=config,
+        )
+
+        assert len(ax_scatter.texts) > 0
         plt.close(fig)
 
 

@@ -12,6 +12,8 @@ import trackpy as tp
 from pt3d.exceptions import ProcessingError
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from numpy.typing import NDArray
 
     from pt3d.config import DetectionConfig, VoxelSize
@@ -177,14 +179,13 @@ def detect_batch(
 
 
 def detect_streaming(
-    frame_iterator,
+    frame_iterator: Iterable[NDArray[np.floating]],
     config: DetectionConfig,
     voxel_size: VoxelSize | None = None,
 ) -> pd.DataFrame:
     """Detect particles from a streaming iterator (memory efficient).
 
-    Uses trackpy.batch with an iterator/generator for memory-efficient
-    processing of large datasets that don't fit in memory.
+    Processes frames one at a time using tp.locate, keeping memory usage low.
 
     Parameters
     ----------
@@ -211,7 +212,7 @@ def detect_streaming(
     -----
     This function is designed for large datasets. The iterator yields
     one 3D volume at a time, keeping memory usage low.
-    trackpy.batch automatically handles frame indexing when given an iterator.
+    Each frame is processed individually with tp.locate and results are concatenated.
     """
     try:
         # Get diameter in pixels (convert from um if necessary)
@@ -227,22 +228,37 @@ def detect_streaming(
 
         separation = list(config.separation) if config.separation else None
 
-        logger.info("Running streaming detection...")
-        features = tp.batch(
-            frame_iterator,
-            diameter=diameter,
-            minmass=config.minmass,
-            threshold=config.threshold,
-            separation=separation,
-            invert=config.invert,
-            preprocess=config.preprocess,
-        )
+        logger.info("Running streaming detection (frame by frame)...")
 
-        if features is None or len(features) == 0:
+        all_features = []
+        for frame_idx, volume in enumerate(frame_iterator):
+            if volume.ndim != 3:
+                msg = f"Volume must be 3D, got {volume.ndim}D at frame {frame_idx}"
+                raise ProcessingError(msg)
+
+            features = tp.locate(
+                volume,
+                diameter=diameter,
+                minmass=config.minmass,
+                threshold=config.threshold,
+                separation=separation,
+                invert=config.invert,
+                preprocess=config.preprocess,
+            )
+
+            if features is not None and len(features) > 0:
+                features["frame"] = frame_idx
+                all_features.append(features)
+
+            if (frame_idx + 1) % 10 == 0:
+                logger.debug(f"Processed frame {frame_idx + 1}")
+
+        if not all_features:
             return pd.DataFrame(columns=["frame", "z", "y", "x", "mass", "size", "ecc", "signal", "raw_mass", "ep"])
 
-        logger.info(f"Detected {len(features)} particles across {features['frame'].nunique()} frames")
-        return features
+        result = pd.concat(all_features, ignore_index=True)
+        logger.info(f"Detected {len(result)} particles across {result['frame'].nunique()} frames")
+        return result
 
     except Exception as e:
         msg = f"Streaming detection failed: {e}"
