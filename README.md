@@ -13,8 +13,11 @@ A Python library for 3D+t particle detection and tracking in microscopy data, us
 
 ## Installation
 
+This repository can be installed directly; no Git submodules are required.
+
 ```bash
 # Using uv (recommended)
+uv venv  # Once, from the repository root
 uv pip install -e .
 
 # With napari support
@@ -71,19 +74,21 @@ napari.run()
 
 ### 3D Visualization
 
-For interactive 3D visualization with volume rendering:
+Using `data`, `tracks`, and `voxel_size` from the Quick Start above:
 
 ```python
 import napari
 from pt3d.napari import Track3DVisualizationWidget
+from pt3d.napari.layers import get_napari_scale, to_napari_tracks
 
 viewer = napari.Viewer()
-viewer.add_image(frames)
-viewer.add_tracks(tracks_data)
+scale = get_napari_scale(voxel_size)
+viewer.add_image(data, name="Volume", scale=scale)
+viewer.add_tracks(to_napari_tracks(tracks), name="Tracks", scale=scale)
 
 # Add 3D widget
 widget_3d = Track3DVisualizationWidget(viewer)
-widget_3d.set_data(image=frames, tracks=tracks, voxel_size=voxel_size)
+widget_3d.set_data(image=data, tracks=tracks, voxel_size=voxel_size)
 viewer.window.add_dock_widget(widget_3d)
 widget_3d.enter_3d_mode()
 
@@ -94,7 +99,7 @@ napari.run()
 
 - **[User Guide](docs/user_guide.md)** - Step-by-step tutorial for real data analysis
 - **[Configuration Reference](docs/configuration.md)** - Complete parameter tuning guide
-- **[Technical Specification](docs/spec.md)** - Architecture and design details (Japanese)
+- **[Implementation Reference](docs/spec.md)** - Current API, processing behavior, and limitations (Japanese)
 
 ## Examples
 

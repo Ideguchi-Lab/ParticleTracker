@@ -499,7 +499,11 @@ def plot_msd_loglog(
 ) -> tuple[Figure, Axes]:
     """Plot MSD vs time delay on log-log scale.
 
-    Shows individual particle MSDs, ensemble average, and power-law fit.
+    Shows individual particle MSDs, ensemble average, and an optional
+    slope-one reference line 6 * mean_d * t. Despite the legacy "alpha=1 fit"
+    legend, this function does not fit a curve or use the estimated alpha
+    for that line. For anomalous diffusion it is only a visual reference,
+    not the model MSD = 6 * D * t**alpha.
 
     Parameters
     ----------
@@ -519,8 +523,9 @@ def plot_msd_loglog(
     -----
     The log-log plot is useful for identifying diffusion regimes:
     - Slope = 1: Normal diffusion
-    - Slope < 1: Subdiffusion (confined)
-    - Slope > 1: Superdiffusion (directed)
+    - Slope < 1: Subdiffusion
+    - Slope > 1: Superdiffusion
+    The slope alone does not identify the physical cause.
     """
     from pt3d.analysis.config import MSDPlotConfig
 

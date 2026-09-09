@@ -111,13 +111,17 @@ Configuration for input data loading and interpretation.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `path` | Path \| None | None | Path to input file (zarr, TIFF, or npy) |
-| `axis_order` | str | "tzyx" | Axis order of input data |
-| `dtype` | str \| None | None | Optional dtype to convert input data to |
+| `axis_order` | str | "tzyx" | Axis order for file inputs; ignored for ndarray pipeline inputs |
+| `dtype` | str \| None | None | Stored metadata; no automatic conversion |
 | `voxel_size` | VoxelSize | **Required** | Physical voxel dimensions |
 
 ### axis_order
 
-Specifies how your data dimensions are organized. Default is `"tzyx"` (time, z, y, x).
+For file inputs to `run_pipeline`, specifies how data dimensions are organized.
+Default is `"tzyx"` (time, z, y, x). For a 3D file, specify `"zyx"`.
+An ndarray passed directly to `run_pipeline` must already be in `tzyx` or `zyx`
+order; `axis_order` is ignored for this input type. Normalize other array layouts
+explicitly with `pt3d.io.load_array(data, axis_order="zyxt")` first.
 
 **Supported axes:**
 - `t` - Time dimension
@@ -139,15 +143,14 @@ input_config = InputConfig(axis_order="zyxt", voxel_size=voxel_size)
 
 ### dtype
 
-Optional data type conversion. Useful when you need specific precision:
+This field is accepted and saved with the configuration, but neither pipeline
+applies it. Convert data explicitly when a particular dtype is needed:
 
 ```python
-# Convert to float32 for memory efficiency
-input_config = InputConfig(
-    path="data.zarr",
-    dtype="float32",
-    voxel_size=voxel_size,
-)
+from pt3d.io import load_data
+
+frames = load_data("data.zarr", axis_order="tzyx").astype("float32", copy=False)
+# Pass frames to run_pipeline(frames, pipeline_config).
 ```
 
 ---
@@ -160,7 +163,8 @@ Parameters for particle detection using [trackpy](https://soft-matter.github.io/
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `diameter` | tuple[int, int, int] | **Required** | Feature diameter (dz, dy, dx) |
+| `diameter` | tuple[int, int, int] \| None | None | Pixel diameter (dz, dy, dx); specify this or diameter_um |
+| `diameter_um` | float \| None | None | Isotropic physical diameter in µm; alternative to diameter |
 | `minmass` | float | 0.0 | Minimum integrated brightness |
 | `threshold` | float \| None | None | Noise floor threshold |
 | `separation` | tuple[int, int, int] \| None | None | Minimum separation between features |
@@ -169,11 +173,22 @@ Parameters for particle detection using [trackpy](https://soft-matter.github.io/
 
 ### diameter (CRITICAL)
 
+Exactly one of `diameter` and `diameter_um` must be supplied. With `diameter_um`,
+pass `voxel_size` to the detection function; the pipeline does this automatically.
+Conversion divides by each voxel dimension, rounds to an integer (minimum 1),
+then increments even integers to the next odd integer. This is not always the
+nearest odd integer to the original value.
+
+```python
+detect_config = DetectionConfig(diameter_um=1.8)
+detections = detect_batch(frames, detect_config, voxel_size=voxel_size)
+```
+
 The most important detection parameter. Specifies the expected particle size
 in pixels as `(dz, dy, dx)`.
 
 **Requirements:**
-- All values **must be odd integers** (3, 5, 7, 9, ...)
+- All values **must be positive odd integers** (1, 3, 5, 7, 9, ...)
 - Should approximate the full width at half maximum (FWHM) of particles
 
 **How to estimate diameter:**
@@ -261,7 +276,7 @@ Parameters for linking detections across frames.
 |-----------|------|---------|-------------|
 | `search_range_um` | float | **Required** | Maximum displacement per frame in µm |
 | `memory` | int | 0 | Frames to remember lost particles |
-| `adaptive_stop` | float \| None | None | Adaptive search stop threshold |
+| `adaptive_stop` | float \| None | None | Stop distance in scaled coordinate units |
 | `adaptive_step` | float \| None | None | Adaptive search step factor |
 
 ### search_range_um (CRITICAL)
@@ -318,7 +333,10 @@ track_config = TrackingConfig(search_range_um=2.0, memory=2)
 Advanced parameters for dense particle fields. Both must be specified together
 or both set to `None`.
 
-- `adaptive_stop`: Stop adaptive search when subnetwork contains this many particles
+- `adaptive_stop`: Give up on an oversized subnet when the reduced search range
+  is at or below this distance. This is a distance threshold, not a particle count.
+  Unlike `search_range_um`, it is passed unchanged to trackpy in scaled units;
+  one scaled unit equals `min(voxel_size.as_tuple())` micrometers.
 - `adaptive_step`: Reduce search_range by this factor (e.g., 0.9 = 90%)
 
 **When to use:**
@@ -327,10 +345,11 @@ or both set to `None`.
 
 ```python
 # For dense scenarios
+stop_um = 0.1  # Desired lower search-distance threshold in micrometers
 track_config = TrackingConfig(
     search_range_um=2.0,
     memory=2,
-    adaptive_stop=10.0,
+    adaptive_stop=stop_um / min(voxel_size.as_tuple()),
     adaptive_step=0.9,
 )
 ```
@@ -350,13 +369,15 @@ Parameters for filtering and refining tracks after linking.
 
 ### min_track_length
 
-Minimum number of frames a track must span to be kept. Removes short "stub"
-tracks that are likely noise.
+Minimum number of observed points per track. Missing frames do not count:
+a track detected only at frames 0 and 10 has length 2, not 11.
+This removes short "stub" tracks that are likely noise.
 
 **Typical values:**
 - 5-10 for general analysis
 - 10-20 for diffusion coefficient estimation
-- 2 (default) to keep all tracks
+- 2 (default) to remove single-point tracks
+- 1 to keep all tracks at this filtering step
 
 ```python
 postprocess = PostprocessConfig(min_track_length=5)
@@ -365,7 +386,8 @@ postprocess = PostprocessConfig(min_track_length=5)
 ### max_velocity_um
 
 Maximum allowed velocity in µm/frame. Track points exceeding this velocity
-are flagged as outliers.
+are removed. Velocity is displacement divided by the frame difference, including
+gaps. The first point of each track is retained; short-track filtering follows.
 
 **When to use:**
 - Remove tracking errors (sudden jumps)
@@ -398,24 +420,28 @@ postprocess = PostprocessConfig(max_velocity_um=10.0)
 
 ### NapariConfig
 
-Configuration for napari visualization.
+Stored preferences for napari visualization. The current pipeline and widgets
+do not read these fields to configure layers. Set names and slice data explicitly
+in the code that creates the layers.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `image_name` | str | "Volume" | Name for the image layer |
-| `points_name` | str | "Detections" | Name for the detection points layer |
-| `tracks_name` | str | "Tracks" | Name for the tracks layer |
-| `frame_range` | tuple[int, int] \| None | None | Optional subset of frames to display |
+| `image_name` | str | "Volume" | Stored image name; not applied |
+| `points_name` | str | "Detections" | Stored points name; not applied |
+| `tracks_name` | str | "Tracks" | Stored tracks name; not applied |
+| `frame_range` | tuple[int, int] \| None | None | Stored range; not applied |
 
 ### frame_range
 
-Use this to display only a subset of frames for faster visualization:
+Setting this field does not select display frames. For an image-only preview,
+slice the array when creating the layer:
 
 ```python
-napari_config = NapariConfig(
-    frame_range=(0, 100),  # Display frames 0-99 only
-)
+viewer.add_image(frames[0:100], name="Preview")
 ```
+
+For matching points and tracks, filter their frame rows as well; subtract the
+slice start from frame coordinates if the preview begins after frame zero.
 
 ### Visualization Helpers
 
@@ -453,7 +479,7 @@ Configuration for 3D volume rendering.
 | `contrast_percentile_high` | float | 99.0 | Upper percentile for contrast (0-100) |
 | `gamma` | float | 1.0 | Gamma correction value |
 | `opacity` | float | 0.5 | Layer opacity (0-1) |
-| `iso_threshold` | float | 0.5 | ISO threshold relative to data range (0-1) |
+| `iso_threshold` | float | 0.5 | ISO threshold relative to contrast limits (0-1) |
 | `colormap` | str | "gray" | Colormap for volume rendering |
 
 #### rendering_mode
@@ -489,7 +515,7 @@ Configuration for 3D track visualization.
 | `colormap` | str | "turbo" | Track colormap |
 | `color_by` | Literal | "track_id" | Property for coloring |
 | `tail_length` | int | 10 | Trail length in frames |
-| `show_current_position` | bool | True | Highlight current position |
+| `show_current_position` | bool | True | Reserved; no rendering effect |
 
 #### color_by
 
@@ -510,7 +536,7 @@ track_config = Track3DConfig(
     colormap="viridis",
     color_by="velocity",
     tail_length=20,
-    show_current_position=True,
+    show_current_position=True,  # Reserved; currently has no effect
 )
 ```
 
@@ -523,7 +549,7 @@ Configuration for 3D detection points visualization.
 | `size` | float | 5.0 | Point size in display units |
 | `face_color` | str | "yellow" | Point face color |
 | `opacity` | float | 0.8 | Point opacity (0-1) |
-| `show_current_frame_only` | bool | True | Show only current frame points |
+| `show_current_frame_only` | bool | True | Reserved; no rendering effect |
 
 ```python
 from pt3d.config import Points3DConfig
@@ -533,7 +559,7 @@ points_config = Points3DConfig(
     size=10.0,
     face_color="red",
     opacity=0.9,
-    show_current_frame_only=True,
+    show_current_frame_only=True,  # Reserved; currently has no effect
 )
 ```
 
@@ -569,7 +595,7 @@ For analyzing Brownian motion and estimating diffusion coefficients.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `min_track_length` | int | 10 | Minimum frames for analysis |
+| `min_track_length` | int | 10 | Minimum observed points for analysis (gaps excluded) |
 | `dt` | float | 1.0 | Time step between frames (seconds) |
 | `msd` | MSDConfig | (default) | MSD computation settings |
 | `interpolate_gaps` | bool | False | Interpolate missing frames |
@@ -580,10 +606,36 @@ Mean Squared Displacement computation settings.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `max_lag_fraction` | float | 0.5 | Maximum lag as fraction of track length |
-| `fit_range_fraction` | tuple | (0.1, 0.5) | Fitting range for power-law fit |
+| `max_lag_fraction` | float | 0.5 | Per-particle maximum lag as fraction of frame span, including gaps |
+| `fit_range_fraction` | tuple | (0.1, 0.5) | Fit-index fractions of len(msd), including lag zero |
 
 **Note:** `fit_range_fraction` must satisfy `0 <= start < end <= 1`.
+
+For a trajectory spanning `n_frames` (including gaps), the per-particle maximum
+lag is `min(int(n_frames * max_lag_fraction), n_frames - 1)`. The MSD array includes
+lag zero. Fit indices are calculated as:
+
+```python
+start = max(1, int(len(msd) * start_fraction))
+end = min(len(msd), max(start + 2, int(len(msd) * end_fraction)))
+# Fit msd[start:end]; end is exclusive. Exclude nonpositive and NaN MSD values.
+```
+
+For 70 frames, `max_lag_fraction=0.3` and `fit_range_fraction=(0.1, 0.8)`
+give 22 MSD values and fit indices `[2:17]` (lags 2 through 16).
+The ensemble MSD separately uses half the shortest frame span and does not use
+`max_lag_fraction`. Each available per-particle MSD has equal weight at a lag.
+
+The fitted model is `MSD = 6 * D * t**alpha`, with time in seconds and positions
+in micrometers. `D` is a generalized coefficient in `µm²/s^alpha`.
+
+### MSDPlotConfig.show_fit
+
+Despite its name, `show_fit=True` draws a slope-one reference line
+`6 * mean_d * t`, with the legacy legend `α=1 fit`. It does not fit the ensemble
+MSD or use estimated exponents. For anomalous diffusion, this line is only a
+visual reference; `show_fit=False` hides it. To draw a particle's fitted model,
+use that particle's `6 * D * time_lags**alpha`.
 
 ---
 
@@ -702,7 +754,7 @@ detection:
 tracking:
   search_range_um: 1.0  # Smaller range
   memory: 1
-  adaptive_stop: 10.0
+  adaptive_stop: 0.5  # Scaled units; equals 0.1 um if the smallest voxel is 0.2 um
   adaptive_step: 0.9
 
 postprocess:

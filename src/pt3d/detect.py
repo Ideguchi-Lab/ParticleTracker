@@ -42,8 +42,11 @@ def detect_frame(
     Returns
     -------
     pd.DataFrame
-        DataFrame with columns [z, y, x, mass, size, ...]
-        Returns empty DataFrame if no particles found
+        DataFrame with columns [z, y, x, mass, ...]. trackpy supplies the
+        additional columns; anisotropic diameters produce size_z/size_y/size_x
+        and may produce ep_z/ep_y/ep_x instead of scalar size and ep.
+        No detections returns an empty DataFrame with columns
+        [z, y, x, mass, size, ecc, signal, raw_mass, ep].
 
     Raises
     ------
@@ -116,8 +119,10 @@ def detect_batch(
     Returns
     -------
     pd.DataFrame
-        DataFrame with columns [frame, z, y, x, mass, size, ...]
-        Returns empty DataFrame if no particles found
+        DataFrame with columns [frame, z, y, x, mass, ...]. Additional columns
+        depend on trackpy and the diameter; see detect_frame.
+        No detections returns an empty DataFrame with columns
+        [frame, z, y, x, mass, size, ecc, signal, raw_mass, ep].
 
     Raises
     ------
@@ -200,8 +205,11 @@ def detect_streaming(
     Returns
     -------
     pd.DataFrame
-        DataFrame with columns [frame, z, y, x, mass, size, ...]
-        Returns empty DataFrame if no particles found
+        DataFrame with columns [frame, z, y, x, mass, ...]. Additional columns
+        depend on trackpy and the diameter; see detect_frame.
+        Frames are numbered from zero in iterator order, including empty frames.
+        No detections returns an empty DataFrame with columns
+        [frame, z, y, x, mass, size, ecc, signal, raw_mass, ep].
 
     Raises
     ------
@@ -289,7 +297,9 @@ def detect_single_frame(
     Returns
     -------
     pd.DataFrame
-        DataFrame with columns [frame, z, y, x, mass, size, ...]
+        Nonempty results have columns [frame, z, y, x, mass, ...], with
+        additional columns as described in detect_frame. If no particles are
+        found, returns detect_frame's empty schema without a frame column.
     """
     if frame_index < 0 or frame_index >= frames.shape[0]:
         msg = f"Frame index {frame_index} out of range [0, {frames.shape[0]})"

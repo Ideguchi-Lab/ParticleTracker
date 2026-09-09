@@ -20,6 +20,7 @@ the results.
 
 ```bash
 # Using uv (recommended)
+uv venv  # Once, from the repository root
 uv pip install -e .
 
 # With napari support for visualization
@@ -140,6 +141,10 @@ Output columns:
 - `z`, `y`, `x`: Particle position in pixels
 - `mass`: Integrated brightness
 - Additional trackpy columns
+
+With an anisotropic diameter such as `(5, 9, 9)`, size and uncertainty columns
+can be axis-specific (`size_z`, `size_y`, `size_x`, `ep_z`, `ep_y`, `ep_x`).
+Do not assume a scalar `size` column is present in nonempty results.
 
 ### Step 4: Visualize Detections (Optional but Recommended)
 
@@ -402,7 +407,13 @@ vol_config = Volume3DConfig(
     gamma=1.0,                        # Gamma correction
     opacity=0.5,                      # Layer opacity
 )
+
+from pt3d.napari.layers import configure_3d_image_layer
+configure_3d_image_layer(viewer.layers["Volume"], vol_config)
 ```
+
+Constructing a config object alone does not update the viewer. The widget
+maintains its own settings and applies them when its controls are used.
 
 ### Track Display Options
 
@@ -422,9 +433,20 @@ track_config = Track3DConfig(
     colormap="turbo",           # Colormap: turbo, viridis, plasma, magma, hsv
     color_by="velocity",        # track_id, time, length, velocity
     tail_length=10,             # Number of frames in trail
-    show_current_position=True, # Highlight current position
+    show_current_position=True, # Reserved; currently has no effect
 )
+
+from pt3d.napari.layers import configure_3d_tracks_layer
+track_stats = compute_track_stats(filtered_tracks, voxel_size)
+configure_3d_tracks_layer(viewer.layers["Tracks"], track_config, filtered_tracks, track_stats)
 ```
+
+Velocity coloring uses each track's mean velocity, not instantaneous velocity.
+The current-position highlight and current-frame-only points checkboxes are
+present but do not change rendering. `NapariConfig` preferences are stored only
+and are not applied by the pipeline or widgets. `set_data()` on the 3D widget
+sets tracking metadata and the time-slider range; create the image, points, and
+tracks layers separately, as in the examples above.
 
 ### Camera Presets
 
@@ -531,6 +553,12 @@ data = imread("data.tif")
 # Ensure shape is (t, z, y, x)
 print(f"Data shape: {data.shape}")
 ```
+
+`run_pipeline(array, config)` expects arrays already in `(t, z, y, x)` or
+`(z, y, x)` order. Its `input.axis_order` setting applies only to file inputs.
+To normalize another array layout, use `pt3d.io.load_array(data, axis_order="zyxt")`.
+For a 3D file, set `input.axis_order="zyx"`. `input.dtype` does not convert data;
+use `data.astype("float32", copy=False)` explicitly if needed.
 
 ### Determining Voxel Size
 
@@ -668,7 +696,7 @@ data_smooth = gaussian_filter(data, sigma=(0, 0.5, 1, 1))
    ```python
    track_config = TrackingConfig(
        search_range_um=1.5,
-       adaptive_stop=10.0,
+       adaptive_stop=0.1 / min(voxel_size.as_tuple()),  # 0.1 um in scaled units
        adaptive_step=0.9,
    )
    ```
@@ -682,7 +710,7 @@ data_smooth = gaussian_filter(data, sigma=(0, 0.5, 1, 1))
    ```python
    track_config = TrackingConfig(
        search_range_um=2.0,
-       adaptive_stop=5.0,
+       adaptive_stop=0.1 / min(voxel_size.as_tuple()),
        adaptive_step=0.95,
    )
    ```
@@ -706,18 +734,23 @@ detect_config = DetectionConfig(diameter=(5, 9, 9))  # Odd numbers
 
 ```python
 # Wrong - only one specified
-track_config = TrackingConfig(search_range_um=2.0, adaptive_stop=10.0)
+track_config = TrackingConfig(search_range_um=2.0, adaptive_stop=0.5)
 
 # Correct - both specified
 track_config = TrackingConfig(
     search_range_um=2.0,
-    adaptive_stop=10.0,
+    adaptive_stop=0.1 / min(voxel_size.as_tuple()),
     adaptive_step=0.9,
 )
 
 # Also correct - neither specified
 track_config = TrackingConfig(search_range_um=2.0)
 ```
+
+`adaptive_stop` is a lower distance threshold in scaled coordinate units,
+not a particle count. One unit equals the smallest voxel dimension in µm.
+Keep it below `search_range_um / min(voxel_size.as_tuple())` to allow the
+search range to shrink when a subnet is too large.
 
 #### "No particles detected"
 
@@ -741,6 +774,13 @@ If you encounter issues not covered here:
 ---
 
 ## Next Steps
+
+Diffusion fits return a generalized coefficient in `µm²/s^alpha`, using
+`MSD = 6 * D * t**alpha`. The `plot_msd_loglog` option `show_fit=True` currently
+draws a slope-one reference using mean D, even though its legend says `α=1 fit`.
+It is not the fitted anomalous-diffusion curve; see the
+[MSD configuration notes](configuration.md#msdconfig) for exact fitting indices
+and the plotting limitation.
 
 - **Advanced analysis**: See [examples/demo_brownian_analysis.py](../examples/demo_brownian_analysis.py)
   for diffusion coefficient estimation

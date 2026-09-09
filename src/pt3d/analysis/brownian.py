@@ -40,7 +40,7 @@ class ParticleDiffusionResult:
     alpha : float
         Diffusion exponent (1.0 for normal diffusion).
     n_frames : int
-        Number of frames in the trajectory.
+        Frame span (last_frame - first_frame + 1), including missing frames.
     msd : NDArray[np.float64]
         MSD values at each time lag.
     time_lags : NDArray[np.float64]
@@ -152,7 +152,7 @@ def tracks_to_positions(
     voxel_size : VoxelSize
         Physical voxel dimensions for unit conversion.
     min_length : int
-        Minimum track length to include.
+        Minimum observed point count to include; missing frames do not count.
 
     Returns
     -------
@@ -306,9 +306,12 @@ def analyze_single_track(
     dt : float
         Time step in seconds.
     max_lag_fraction : float
-        Maximum time lag as fraction of track length.
+        Maximum time lag as fraction of len(positions), including gap rows.
     fit_range_fraction : tuple[float, float]
-        Range for fitting as (start, end) fraction.
+        Fractions of the MSD array length, including lag zero. The indices are
+        start = max(1, int(len(msd) * start_fraction)) and
+        end = max(start + 2, int(len(msd) * end_fraction)).
+        fit_diffusion_exponent clips end to len(msd) and excludes end.
 
     Returns
     -------
@@ -350,7 +353,9 @@ def compute_ensemble_msd(
     Parameters
     ----------
     positions_dict : dict[int, NDArray[np.float64]]
-        Mapping from particle ID to position arrays.
+        Mapping from particle ID to position arrays in micrometers, with
+        NaN rows for missing frames. Each particle's time-averaged MSD has
+        equal weight at a lag; NaN MSD values are excluded at that lag.
     dt : float
         Time step in seconds.
     max_lag : int | None
@@ -409,7 +414,9 @@ def analyze_diffusion(
     result : PipelineResult
         Pipeline result containing tracks DataFrame.
     config : DiffusionAnalysisConfig | None
-        Analysis configuration. Uses defaults if None.
+        Analysis configuration. Uses defaults if None. max_lag_fraction
+        affects per-particle MSD only; ensemble MSD uses half the shortest
+        frame span, including missing frames.
 
     Returns
     -------

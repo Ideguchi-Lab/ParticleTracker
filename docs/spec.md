@@ -1,564 +1,212 @@
-以下に、あなたが作成予定の「三次元時系列（3D+t）粒子検出・追跡ライブラリ（trackpy + napari パイプライン）」の**仕様書ドラフト**を、実装に直結する粒度でまとめます。
-（Markdown形式。リポジトリの `SPEC.md` / `docs/spec.md` としてそのまま配置できる想定です。）
-
-注意事項
-pythonのパッケージマネージャーとしてはuv を使用してください。
-コード中のコメントやコミットメッセージなどは英語で書いてください。
-
-napariは `napari[all]` でインストールしてください。
-trackpyは`trackpy`でインストールしてください。
-
----
-
-# 3D+t Particle Tracking Library 仕様書（trackpy + napari）
-
-* 文書種別：仕様書（ドラフト）
-* バージョン：v0.1
-* 作成日：2025-12-25
-* 対象：顕微鏡 3D+t データに対する particle 検出（detection）とフレーム間リンク（tracking）を、**trackpy を処理エンジン**として、**napari を可視化・対話調整環境**として統合する Python ライブラリおよび napari プラグイン
-
----
-
-## 1. 目的
-
-### 1.1 目的
-
-* 顕微鏡で取得した **三次元時系列データ（t, z, y, x）**から、粒子候補を検出し、フレーム間で同一粒子をリンクして **軌跡（track）**を生成する。
-* 粒子形状が不定形・ノイジーであり、**ハイパーパラメータを手動で調整**しながら品質を上げられる設計とする。
-* 研究用途（再現性・監査性重視）として、**パラメータ・入出力・環境情報**を記録し、再実行可能なパイプラインを提供する。
-
-### 1.2 成果物
-
-1. Python ライブラリ（例：`pt3d` など）
-2. napari プラグイン（GUI）
-
-   * 画像表示＋検出点（Points）＋軌跡（Tracks）の重ね合わせ
-   * パラメータ変更 → 部分時間範囲で試行 → 結果を即時確認
-3. CLI（任意。ただし研究現場でのバッチ処理を想定し推奨）
-
----
-
-## 2. 想定ユーザー・ユースケース
-
-* 顕微鏡研究者（2Dでなく3D+tが主対象）
-* 用途例
-
-  * 単粒子追跡、微粒子の輸送解析、流体中粒子の動態解析
-  * 粒子の出現/消失や一時的な検出欠損があるデータ
-
----
-
-## 3. スコープ
-
-### 3.1 スコープ内
-
-* 3D+t ボリュームスタック（`(t, z, y, x)`）の読み込み・正規化・前処理
-* trackpy による N次元検出（locate/batch 相当の呼び出し）
-* trackpy によるリンク（`link_df` 相当）
-* 追跡結果の QC（短い軌跡除外、外れ値除外、統計量計算）
-* napari 表示（Image / Points / Tracks）
-* 設定ファイル（YAML/JSON）によるパラメータ管理と、実行結果への埋め込み（プロビナンス）
-
-### 3.2 スコープ外（v0.1では実装しない）
-
-* 深層学習ベースのセグメンテーション（StarDist / Cellpose 等）の学習・推論自体
-
-  * ただし、将来拡張として「検出器バックエンド差し替え」は設計に含める
-* マルチオブジェクトの分裂/融合イベントの厳密推定（u-track 的な高度イベントモデル）
-* 大規模クラスタ分散実行（Dask cluster 等）
-
----
-
-## 4. 用語定義
-
-* **Volume**：1時刻の 3D 配列（`(z, y, x)`）
-* **Frame**：時刻 `t` の Volume（`t` index）
-* **Detection**：各 frame 内で粒子候補の位置（必要に応じて特徴量）を推定する工程
-* **Linking/Tracking**：連続フレーム間で同一粒子を対応付けし、track ID を付与する工程
-* **Track**：`track_id` に紐づく時系列点列
-* **Anisotropy**：z ピッチと xy ピクセルサイズが異なる（z が粗い等）こと
-
----
-
-## 5. 設計方針
-
-1. **検出と追跡の分離（track-by-detection）**
-
-   * 検出が不安定なままリンクを頑張らない
-   * GUI でも検出・リンクを別ボタンに分ける
-
-2. **可視化は napari、計算は trackpy**
-
-   * napari：人間の目で誤検出・誤リンクを判定しやすい重ね表示を提供
-   * trackpy：検出・リンク計算と DataFrame 出力を担う
-
-3. **3D異方性を前提**
-
-   * z方向の解像度差を扱えるよう、距離計算やスケーリング手段を仕様化する
-
-4. **再現性（Reproducibility）**
-
-   * 入力データの識別子（パス、ハッシュ、サイズ、軸順）
-   * パラメータ（検出・追跡・前処理・スケーリング）
-   * バージョン情報（Python、依存パッケージ）
-     を出力に記録する。
-
----
-
-## 6. 全体アーキテクチャ
-
-### 6.1 コンポーネント
-
-* `io`：入力読み込み、軸正規化、メタデータ抽出、出力保存
-* `preprocess`：フィルタ、背景補正、正規化、マスク適用
-* `detect`：trackpy を用いた 3D 検出（N次元 locate/batch 呼び出し）
-* `track`：trackpy を用いたリンク（link_df）＋異方性補正
-* `postprocess`：軌跡フィルタ、特徴量計算、QC統計
-* `viz_napari`：napari へのレイヤ投入、更新、GUIウィジェット
-* `config`：設定スキーマ（Pydantic 等）、入出力、バリデーション
-* `pipeline`：上記のオーケストレーション（実行順序と成果物の統合）
-* `cli`：設定ファイルでのバッチ実行（任意だが推奨）
-
-### 6.2 データフロー（標準）
-
-1. Load（IO）
-2. Preprocess（任意）
-3. Detect（per-frame）
-4. Track（link）
-5. Postprocess/QC
-6. Export（CSV/Parquet + 設定 + ログ）
-7. Visualize（napari）
-
----
-
-## 7. データモデル（内部標準）
-
-### 7.1 軸順の標準化
-
-* 内部標準：`(t, z, y, x)`（time-first）
-* 入力が異なる場合は、IO層で必ず内部標準に変換する。
-
-### 7.2 物理スケール（任意だが推奨）
-
-* `voxel_size_um = (z_um, y_um, x_um)`
-* 追跡距離や速度を物理単位で扱う場合、内部で座標スケーリングを行えること。
-
-### 7.3 検出出力（DataFrame）
-
-必須カラム：
-
-* `frame`（int）
-* `z`, `y`, `x`（float：座標。サブピクセル可）
-
-推奨カラム（trackpy が出す/使うことが多い）：
-
-* `mass`, `size`, `signal`, `raw_mass` 等（利用できる場合）
-* `quality`（後段フィルタの統一概念。ない場合は `mass` 等で代替）
-
-### 7.4 追跡出力（DataFrame）
-
-上記＋必須：
-
-* `particle`（int：track_id）
-
-### 7.5 napari Tracks 形式
-
-* napari の Tracks は `N x (D+1)` の数値配列で表現する（例：`[track_id, t, z, y, x]`）。
-* 本ライブラリは `DataFrame -> tracks_array` 変換関数を提供する。
-
----
-
-## 8. 入出力仕様
-
-### 8.1 入力サポート
-
-必須（v0.1）：
-
-* `numpy.ndarray`（既に `(t, z, y, x)` になっているもの）
-* `zarr`（ローカル。将来 OME-Zarr も想定）
-
-推奨（可能なら v0.1に含める）：
-
-* `tifffile` での TIFF/OME-TIFF 読み込み
-
-### 8.2 出力
-
-必須：
-
-* `detections.parquet`（または `csv`）
-* `tracks.parquet`（または `csv`）
-* `config.yaml`（実行に用いた設定の完全コピー）
-* `run.json`（プロビナンス：入力情報・バージョン・日時・実行時間・例外等）
-
-任意：
-
-* napari 用セッション再現（レイヤ保存）機能（v0.2以降でもよい）
-
----
-
-## 9. 設定（Config）仕様
-
-### 9.1 形式
-
-* YAML（推奨）または JSON
-* `Pydantic` 等で schema validation を行う
-
-### 9.2 設定カテゴリ
-
-1. `input`
-
-   * path / dataset key / axis order / dtype
-2. `preprocess`
-
-   * 背景補正、平滑化、正規化、マスク、閾値処理
-3. `detect`
-
-   * trackpy locate/batch 相当パラメータ（3D対応）
-4. `track`
-
-   * link_df 相当パラメータ
-   * 異方性補正（座標スケーリング）設定
-5. `postprocess`
-
-   * stub 除去（最短長）
-   * 外れ値速度除外
-6. `export`
-
-   * 出力形式、パス、上書き可否
-7. `napari`
-
-   * レイヤ名、表示設定、サブセット範囲
-
----
-
-## 10. 検出仕様（Detection）
-
-### 10.1 検出エンジン
-
-* v0.1：trackpy を用いた N次元検出を第一選択とする。
-* 入力：`volume[z,y,x]`（単一 frame）または `frames`（複数 frame）
-* 出力：DataFrame（`frame,z,y,x,...`）
-
-### 10.2 主要パラメータ（3D）
-
-* `diameter = (dz, dy, dx)`
-
-  * **奇数**であること（検証してエラー）
-  * z の解像度が粗い場合は `dz` を小さめにするなど、異方性を意識して指定可能にする
-* `minmass`：ノイズ除去の主要ノブ
-* `threshold`：背景が不安定な場合の補助ノブ
-* `separation`：近接粒子の分離条件
-* `invert`：暗い粒子の場合
-* `preprocess`：trackpy 内蔵前処理を使う/使わない
-
-### 10.3 実行単位
-
-* `detect(frame_index=t)`：単一フレームの検出
-* `detect(range=t0:t1)`：時間範囲の検出（napari での対話用途）
-* `detect_all()`：全フレーム検出（バッチ用途）
-
-### 10.4 エッジケース対応
-
-* 検出点数が 0 のフレームを許容（空DataFrameで返す）
-* 破綻するフレーム（例外）時は
-
-  * 標準：例外を上げる
-  * オプション：ログに記録し、そのフレームをスキップして継続
-
----
-
-## 11. 追跡仕様（Linking/Tracking）
-
-### 11.1 追跡エンジン
-
-* v0.1：trackpy の `link_df` を使用（DataFrame に `particle` を付与）
-
-### 11.2 主要パラメータ
-
-* `search_range`：フレーム間最大移動距離（最重要）
-* `memory`：検出欠損を許容するフレーム数
-* `adaptive_stop`, `adaptive_step`：密な場でのサブネット過大問題の緩和（任意）
-
-### 11.3 異方性（zスケール差）対策
-
-本ライブラリは以下の2方式をサポートする。
-
-* **方式A：座標スケーリング（推奨）**
-
-  * リンク前に座標を `z' = z * (z_um / x_um)` 等でスケールし、距離計算を等方化する。
-  * 出力時は元座標（未スケール）も保持する（例：`z_raw,y_raw,x_raw` を保持）。
-* **方式B：事前にボリュームを等方リサンプリング**
-
-  * `preprocess` 側でリサンプルしてから検出・追跡する（計算コスト増、画質劣化可能性）
-
-v0.1 では方式Aを必須搭載、方式Bは任意搭載。
-
-### 11.4 Track IDの連番規則
-
-* `particle`（track_id）は trackpy の出力に準拠し、0以上の整数とする。
-* 出力の安定化のため、必要なら `relabel_tracks(mode="dense")` を提供（オプション）。
-
----
-
-## 12. 後処理（Postprocess/QC）
-
-### 12.1 最小要件（v0.1）
-
-* stub 除去：短すぎる軌跡の除外（`min_track_length`）
-* 統計：trackごとの長さ、平均速度、最大速度（物理単位があれば µm/s も）
-
-### 12.2 任意（v0.2候補）
-
-* ドリフト推定・補正
-* 局所密度や MSD（mean squared displacement）計算
-
----
-
-## 13. napari プラグイン仕様（GUI）
-
-### 13.1 目的
-
-* 画像に対して検出点・軌跡を重ね、誤検出/誤リンクを**視覚的に**確認しながらパラメータを調整できるようにする。
-
-### 13.2 レイヤ構成
-
-* `Image`: 4D (t,z,y,x)
-* `Points`: 検出点（座標は `[t,z,y,x]` で表示できる形に整形）
-* `Tracks`: 軌跡（配列 `[track_id, t, z, y, x]`）
-
-### 13.3 UI（最小セット）
-
-1. 入力/サブセット
-
-   * 現在フレーム `t` のみ / 範囲 `t0..t1` の指定
-2. Detection パネル
-
-   * `diameter (dz,dy,dx)`、`minmass`、`threshold`、`separation`、`invert`
-   * 実行ボタン：`Run Detection (subset)`
-3. Tracking パネル
-
-   * `search_range`、`memory`、（任意）`adaptive_stop/adaptive_step`
-   * 実行ボタン：`Run Tracking (on current detections)`
-4. Export パネル
-
-   * `Export detections/tracks/config/run` の保存先
-5. ログ表示
-
-   * 検出点数、track数、平均長、例外メッセージ等
-
-### 13.4 実行方式（重要）
-
-* napari UI を固めないために、重い処理は **バックグラウンド worker**（napari推奨のスレッドワーカー等）で実行する。
-* 実行中は UI 上で状態（running / done / error）を明示する。
-
-### 13.5 キャッシュ
-
-* 同一サブセット・同一パラメータでの再実行を避けるため、
-
-  * `detections_cache[(t_range, detect_config_hash)] = df`
-  * `tracks_cache[(t_range, detect_hash, track_hash)] = df`
-    を保持可能にする（メモリ制限に注意）。
-
----
-
-## 14. Python API 仕様（ライブラリ）
-
-### 14.1 公開API（案）
-
-#### Config
-
-* `PipelineConfig`（入力・前処理・検出・追跡・後処理・出力）
-* `DetectionConfig`
-* `TrackingConfig`
-* `PreprocessConfig`
-* `ExportConfig`
-
-#### Pipeline 実行
-
-* `run_pipeline(config: PipelineConfig) -> PipelineResult`
-
-  * `PipelineResult` は `detections_df`, `tracks_df`, `run_info` を保持
-
-#### 個別実行
-
-* `load_volume_series(...) -> np.ndarray`（返り値は `(t,z,y,x)`）
-* `preprocess(series, config) -> series`
-* `detect(series or subset, detect_config) -> detections_df`
-* `track(detections_df, tracking_config, voxel_size_um=None) -> tracks_df`
-* `postprocess(tracks_df, post_config) -> tracks_df`
-
-#### napari 変換
-
-* `to_napari_points(detections_df) -> np.ndarray`
-* `to_napari_tracks(tracks_df) -> np.ndarray`
-
-#### エクスポート
-
-* `export_results(result, export_config)`
-
-### 14.2 例外設計
-
-* `ConfigError`：設定不正（diameter偶数、軸順不正など）
-* `DataError`：入力データ不正（次元不一致など）
-* `ProcessingError`：検出/追跡失敗（内部例外をラップ）
-
----
-
-## 15. 非機能要件
-
-### 15.1 性能
-
-* 最初は全フレーム一括ではなく、**サブセット処理**が高速に回ること（napari調整用途）
-* 大規模データに備えて、将来 `dask array` 入力も視野（v0.2）
-
-### 15.2 再現性・監査
-
-* 実行時に以下を `run.json` に保存
-
-  * 入力ファイル情報（パス、サイズ、mtime、任意でhash）
-  * config 全内容
-  * 依存パッケージバージョン（pip freeze相当の要約）
-  * 実行開始/終了時刻、処理時間
-  * 例外発生時はトレース要約
-
-### 15.3 可搬性
-
-* OS：Windows/macOS/Linux
-* Python：3.10+ を想定（プロジェクトで決定）
-
----
-
-## 16. テスト要件
-
-### 16.1 単体テスト
-
-* Config validation（diameter 奇数、軸順変換）
-* `DataFrame -> napari` 変換の正しさ
-* 空入力、空フレーム時の挙動
-
-### 16.2 結合テスト
-
-* 合成データ（既知の粒子位置）で検出精度・追跡精度が一定以上
-* 異方性（z_um != x_um）ケースの距離スケーリングが妥当
-
-### 16.3 回帰テスト
-
-* 代表データセット（小）に対し、出力 track 数や平均長などの統計が大きく崩れないこと
-
----
-
-## 17. 依存関係（推奨）
-
-必須：
-
-* numpy, pandas
-* trackpy
-* napari（プラグイン側）
-* pydantic（config validation）
-* pyyaml（YAML）
-
-推奨：
-
-* tifffile（TIFF/OME-TIFF）
-* zarr（大規模データ）
-* dask（将来）
-* scikit-image（前処理）
-
----
-
-## 18. リポジトリ構成（案）
-
-```
-pt3d/
-  pyproject.toml
-  src/pt3d/
-    __init__.py
-    config.py
-    io.py
-    preprocess.py
-    detect.py
-    track.py
-    postprocess.py
-    napari/
-      __init__.py
-      plugin.py
-      widgets.py
-      layers.py
-    pipeline.py
-    export.py
-    utils.py
-  tests/
-    test_config.py
-    test_convert_napari.py
-    test_pipeline_synth.py
-  docs/
-    spec.md   <-- 本仕様書
-    usage.md
-  examples/
-    notebook_2d_to_3d.ipynb
-    run_cli_example.yaml
+# pt3d 実装リファレンス
+
+この文書は、現在のコードが提供するAPIと処理内容を記載します。
+以前の設計ドラフトにあった将来機能は、実装済み機能に含めていません。
+導入・使用例は[User Guide](user_guide.md)、設定値は
+[Configuration Reference](configuration.md)を参照してください。
+
+## 構成と処理の流れ
+
+| モジュール | 役割 |
+|---|---|
+| `pt3d.config` | Pydanticによる入力・検出・追跡・出力設定 |
+| `pt3d.io` | ndarray、NPY、TIFF、Zarrの読み込みと軸順の正規化 |
+| `pt3d.detect` | trackpyの`locate`、`batch`を使う3D粒子検出 |
+| `pt3d.track` | 物理距離に対応する座標スケーリングと粒子のリンク |
+| `pt3d.postprocess` | 速度による点の除去、短い軌跡の除去、統計量計算 |
+| `pt3d.pipeline` | 検出から出力までの処理を統合 |
+| `pt3d.export` | DataFrame、設定、実行情報の保存 |
+| `pt3d.napari` | 表示用データ変換とQtウィジェット |
+| `pt3d.synth` | 合成粒子画像・FBM軌跡の生成 |
+| `pt3d.analysis` | MSD・異常拡散フィット・matplotlibによる描画 |
+
+標準パイプラインは、入力取得 → 検出 → リンク → 速度フィルタ（任意）→
+短い軌跡の除去 → 統計量計算 → 保存（任意）の順に実行します。
+独立した`PreprocessConfig`や`pt3d.preprocess`はありません。
+検出時の`preprocess=True`はtrackpyのbandpass前処理を有効にします。
+背景補正やリサンプリングを別途行う場合は、入力前に実行してください。
+
+## 入力と座標
+
+内部の標準軸順は`(t, z, y, x)`です。位置列`z, y, x`の単位はピクセルです。
+`VoxelSize(z_um, y_um, x_um)`は各軸のサンプリング間隔をµmで表し、
+パイプライン設定では必須です。
+
+| 入力方法 | 挙動 |
+|---|---|
+| `run_pipeline(array, config)` | 配列は`tzyx`または`zyx`が前提。3Dなら先頭に時間軸を追加 |
+| `run_pipeline(path, config)` | `config.input.axis_order`を使って読み込み時に正規化 |
+| `run_pipeline_streaming(iterator, config, n_frames=None)` | `zyx`の3D配列を順番に受け取り、0からフレーム番号を付与 |
+| `load_array(data, axis_order="tzyx")` | 配列を`tzyx`に正規化。3D配列では`axis_order="zyx"`などを指定 |
+| `load_data(source, axis_order="tzyx", dataset_key=None)` | 配列またはファイルから読み込み・正規化 |
+
+`run_pipeline`への配列入力では`config.input.axis_order`を使いません。
+異なる軸順の配列は`load_array`で変換してから渡してください。
+3Dファイルの入力では`axis_order="zyx"`などの3軸指定が必要です。
+`input.dtype`は設定として保存されるだけで、型変換は行われません。
+
+Zarrのルートがgroupの場合は、`load_data`や`load_zarr`の`dataset_key`で
+配列を指定してください。`InputConfig`には`dataset_key`がないため、
+必要な配列を読み込んでからパイプラインへ渡します。
+通常のファイル読み込みは配列全体をメモリに展開します。
+ストリーミング版は画像を1フレームずつ処理しますが、検出点のDataFrameは
+全フレーム分を保持してからリンクします。
+
+## 検出API
+
+`pt3d.detect`には以下の関数があります。
+
+```python
+detect_frame(volume, config, voxel_size=None)
+detect_batch(frames, config, frame_range=None, voxel_size=None)
+detect_streaming(frame_iterator, config, voxel_size=None)
+detect_single_frame(frames, frame_index, config, voxel_size=None)
 ```
 
----
+`DetectionConfig`では`diameter`と`diameter_um`のどちらか一方を指定します。
+`diameter`は正の奇数3個の組`(dz, dy, dx)`です。
+`diameter_um`を使う個別検出関数には`voxel_size`も渡してください。
+パイプラインは設定内のvoxel sizeを自動で渡します。
+µmからの変換は、各軸のvoxel sizeで割って整数に丸め、最小値を1とし、
+偶数なら1を加えます。
 
-## 19. 実装優先順位（MVPロードマップ）
+`frame_range=(start, end)`は終端を含みません。
+`detect_batch`の出力フレーム番号は元の入力配列に対応します。
+ストリーミング版は、検出のないフレームも含めてiterator順に番号を付けます。
+検出エラーが発生すると例外を送出し、失敗フレームをスキップして継続する
+オプションはありません。
 
-### v0.1（MVP）
+非空の検出結果は`z, y, x, mass`とtrackpy由来の特徴量を含みます。
+`detect_frame`を除く関数は`frame`を追加します。
+異方的なdiameterでは`size_z/y/x`や`ep_z/y/x`など、軸別の列が返ります。
+空の結果には`size, ecc, signal, raw_mass, ep`を含む固定スキーマを使うため、
+非空時と特徴量の列が一致するとは限りません。
+`detect_single_frame`の空結果には`frame`列がありません。
 
-* `(t,z,y,x)` ndarray 入力
-* trackpy による 3D検出 → link_df
-* 座標スケーリング方式による異方性対応
-* napari 表示（Image/Points/Tracks）
-* YAML config + export（tracks/detections/run）
+## リンクと後処理
 
-### v0.2
+```python
+from pt3d.track import link_detections, relabel_tracks
+from pt3d.postprocess import postprocess, compute_track_stats
 
-* zarr/OME-Zarr 入力
-* キャッシュ強化、dask対応の布石
-* QC指標の拡充（MSD等）
-* 検出器バックエンド差し替えインターフェース
+tracks = link_detections(detections, tracking_config, voxel_size)
+tracks = postprocess(tracks, postprocess_config, voxel_size)
+stats = compute_track_stats(tracks, voxel_size)
+```
 
----
+リンク時は各座標を`voxel_size / min(voxel_size)`でスケーリングし、
+`search_range_um`も最小voxel sizeで割ってtrackpyに渡します。
+返り値は元のピクセル座標を保持し、`particle`列が追加されます。
 
-## 20. 受け入れ基準（Acceptance Criteria）
+`memory`は検出欠測を許すフレーム数です。
+`adaptive_stop`と`adaptive_step`は両方を指定するか、両方省略します。
+`adaptive_stop`は粒子数ではなく、過大なサブネットで探索距離を縮小する際の
+停止距離です。現在はµmから変換せず、スケーリング後の座標単位でそのまま
+trackpyへ渡します。µmで指定したい閾値は最小voxel sizeで割ってください。
 
-* 3D+t データを読み込み、指定したパラメータで
+`min_track_length`は観測点数で判定し、欠測フレームは数えません。
+既定値2では1点だけの軌跡が除かれます。
+速度は3D変位をフレーム差で割ったµm/frameであり、µm/sではありません。
+速度フィルタは閾値を超えた点を削除し、その後に短い軌跡を削除します。
 
-  1. detections が DataFrame として得られる
-  2. tracks が `particle` 付き DataFrame として得られる
-  3. napari 上で Image + Points + Tracks が同時表示できる
-  4. config と run 情報が出力され、同一入力・同一設定で再実行した場合に同等結果が得られる
-* 異方性設定（例：`voxel_size_um=(0.8, 0.2, 0.2)`）で、z方向の距離が適切に補正される。
+`compute_track_stats`の列は次のとおりです。
 
----
+| 列 | 意味 |
+|---|---|
+| `particle` | 軌跡ID |
+| `length` | 観測点数 |
+| `duration` | 最終frame − 最初のframe |
+| `mean_velocity_um` | 観測点間の速度の算術平均、µm/frame |
+| `max_velocity_um` | 最大速度、µm/frame |
+| `total_displacement_um` | 始点と終点の直線距離、µm |
 
-## 補足：設計上の「重要な落とし穴」と対策（仕様に含めるべき事項）
+## 結果と出力
 
-1. **軸順の混乱**：napariは多次元を柔軟に扱えるが、trackpy側の DataFrame 座標列と一致しないと即破綻する
-   → 仕様として「内部標準 `(t,z,y,x)`」「DataFrame カラム `frame,z,y,x`」を固定する。
+`run_pipeline(data, config)`とストリーミング版は`PipelineResult`を返します。
+主な属性は`detections`、`tracks`、`track_stats`、`config`、`input_info`、
+`start_time`、`end_time`です。`n_detections`、`n_tracks`、`duration_seconds`と
+`summary()`も提供します。実行時間は自動エクスポートの前までを測定します。
 
-2. **異方性を無視した距離**：zが粗いのに (z,y,x) を同じ距離で扱うと誤リンクが増える
-   → 仕様として「座標スケーリング方式」を v0.1 で必須。
+`config.export`が指定されると、以下の4ファイルを保存します。
 
-3. **検出が不安定なままリンク**：リンクパラメータ調整で泥沼化
-   → GUIは検出と追跡を分離し、検出を先に確定する導線にする。
+- `detections.parquet`または`detections.csv`
+- `tracks.parquet`または`tracks.csv`
+- `config.yaml`
+- `run.json`
 
----
+`track_stats`は自動保存されません。必要ならDataFrameから明示的に保存します。
+個別の保存APIは`pt3d.pipeline.export_results(result, pipeline_config)`です。
+`overwrite=False`では既存ファイルへの上書きを拒否します。
+出力は順次行われ、途中で失敗した場合に先に保存したファイルは残ります。
 
-# 次にやると実装が早いこと（仕様の確定ポイント）
+`run.json`には設定、開始・終了時刻、実行時間、結果サマリー、Python・OSと
+pt3d/trackpy/NumPy/pandasのバージョンを保存します。
+通常入力の情報はsource・shape・dtype、ストリーミング入力ではsourceと
+呼び出し側が渡したn_framesです。入力ハッシュ・mtime・全依存の一覧は収集しません。
+失敗時のrun.jsonはパイプラインから自動保存されません。
+`export_run_info(error=...)`を直接呼べば、渡したエラー文字列を保存できます。
 
-仕様を最終確定するうえで、実装に影響が大きい“決め”は次の3点です（質問というより決定事項の候補です。あなたの判断で埋めてください）。
+## 拡散解析とシミュレーション
 
-1. **入力フォーマットの最優先**：OME-TIFFを必須にするか、まずは ndarray/zarr のみで始めるか
-2. **距離単位**：
+`analyze_diffusion(pipeline_result, analysis_config=None)`は観測点をµmへ変換し、
+欠測をNaNで表す連続フレーム配列を作ります。最短軌跡の選別は観測点数、
+解析結果の`n_frames`は欠測を含むフレーム範囲の長さです。
+`interpolate_gaps=True`で線形補間し、FalseではMSDの各lagで有効な点対のみを使います。
 
-   * 追跡パラメータ `search_range` を「ピクセル基準」で統一するか
-   * 「µm基準」を標準にするか（その場合 voxel_size_um を必須入力にする）
-3. **前処理の責務**：
+モデルは`MSD = 6 * D * t**alpha`です。時間は秒、Dの単位はµm²/s^alphaです。
+`fit_diffusion_exponent`の返り値は`(alpha, D)`で、常に振幅を6で割ります。
+`analyze_single_track`は`(D, alpha, msd)`を返します。
+成分別の1D MSDから得た係数をそのまま1D拡散係数として解釈しないでください。
 
-   * v0.1でどこまで（背景補正、DoG/LoG、正規化）を標準提供するか
-   * もしくはユーザーが前処理済みデータを渡す前提にするか
+最大lagの割合は個々の粒子に適用します。フィット範囲はlag 0を含むMSD配列長に
+割合を掛け、整数化と最低点数の補正を行います。
+正確な計算式は[MSDConfig](configuration.md#msdconfig)を参照してください。
+ensemble MSDは別途、最短フレーム範囲の半分まで計算し、各粒子のMSDを等重みで平均します。
 
----
+`plot_msd_loglog`には`MSDPlotConfig(show_fit=True)`をconfig引数に渡します。この設定は
+`6 * mean_d * t`という傾き1の参考線を表示します。
+凡例は`α=1 fit`ですが、推定alphaを使う曲線やensembleのフィットではありません。
 
-必要なら、この仕様書の内容を前提に、Codex に渡すための「タスク分割（issueテンプレ）」「各モジュールの関数シグネチャ一覧」「設定YAMLの具体例」まで落として提示します。
+合成軌跡はFBMの共分散行列のCholesky分解で生成します。
+シミュレーションのDも一般化係数で、単位はµm²/s^(2H)、alpha=2Hです。
+画像とともに返すground truth座標はピクセル単位の`[z, y, x]`です。
+境界条件は座標の反射・周期的な折り返し・各時刻のクリップを提供します。
+`absorbing`はクリップの名称であり、一度境界に到達した粒子を以降固定する処理では
+ありません。境界処理後のMSDは無境界のFBMモデルから変わる場合があります。
+
+## napari
+
+Points用配列は`[t, z, y, x]`または`[z, y, x]`、Tracks用は
+`[particle, t, z, y, x]`です。`to_napari_tracks`はparticle・frame順に整列します。
+`get_napari_scale`は`(1, z_um, y_um, x_um)`などの表示スケールを返します。
+レイヤ作成時に明示的に渡してください。
+
+プラグインは`MainWidget`と`Track3DVisualizationWidget`を提供します。
+MainWidgetでは検出・追跡・統計表示・統計のCSV/Parquet保存が可能です。
+検出と追跡はGUIスレッドで同期実行され、バックグラウンドworkerや設定別の結果キャッシュは
+実装されていません。検出・軌跡・設定・run情報の一括保存はPython APIを使います。
+
+3Dウィジェットは描画方式・コントラスト・色・軌跡長・カメラ・時間操作を提供します。
+`set_data(image=None, tracks=None, detections=None, voxel_size=None)`は
+追跡メタデータと時間スライダー範囲を設定します。レイヤは作成せず、
+`detections`引数は未使用です。画像・点・軌跡のレイヤは先に作成してください。
+
+以下は現在の制約です。
+
+- `NapariConfig`の名前とframe_rangeは保存されるだけで、自動適用されません。
+- `show_current_position`と`show_current_frame_only`は描画に使われません。
+- 個別Track IDのhighlight操作はログを出すだけです。
+- `color_by="length"`、`"velocity"`、`"displacement"`にはtrack_statsが必要です。
+  利用できないプロパティを選ぶとtrack IDによる着色へ戻ります。
+- velocityによる着色は軌跡ごとの平均速度を使います。
+
+## 設定ファイル・例外
+
+`examples/run_from_yaml.py`はYAMLを`PipelineConfig.model_validate`で読み込みます。
+リポジトリルートから実行し、スクリプト内のCONFIG_PATHなどを編集してください。
+インストールされる専用CLIコマンドはありません。
+
+設定モデルの不正値はPydanticの`ValidationError`になります。
+`ConfigError`クラスは定義されていますが、現在の設定モデルは使用しません。
+読み込み層では`DataError`、検出・リンクなどでは`ProcessingError`を使用します。
+ファイルI/Oなどの例外がすべてこれらに包まれるわけではありません。

@@ -17,20 +17,23 @@ class MSDConfig(BaseModel):
     Attributes
     ----------
     max_lag_fraction : float
-        Maximum time lag as fraction of track length.
+        Maximum per-particle time lag as fraction of the frame span, including
+        missing frames. The ensemble MSD uses half the shortest frame span.
     fit_range_fraction : tuple[float, float]
-        Fitting range as (start, end) fraction of max_lag.
+        Fractions of len(msd), including lag zero. Start is at least 1;
+        end is exclusive and at least start + 2 before clipping to len(msd).
+        See analyze_single_track for the exact index calculation.
     """
 
     max_lag_fraction: float = Field(
         default=0.5,
         ge=0.1,
         le=1.0,
-        description="Maximum time lag as fraction of track length",
+        description="Maximum per-particle lag as fraction of frame span",
     )
     fit_range_fraction: tuple[float, float] = Field(
         default=(0.1, 0.5),
-        description="Fitting range as (start, end) fraction of max_lag",
+        description="Fitting range fractions of MSD array length, including lag zero",
     )
 
     @field_validator("fit_range_fraction")
@@ -52,7 +55,7 @@ class DiffusionAnalysisConfig(BaseModel):
     Attributes
     ----------
     min_track_length : int
-        Minimum number of frames required for analysis.
+        Minimum number of observed points required for analysis (gaps excluded).
     dt : float
         Time step between frames in seconds.
     msd : MSDConfig
@@ -282,7 +285,9 @@ class MSDPlotConfig(BaseModel):
     show_ensemble : bool
         Show ensemble average MSD.
     show_fit : bool
-        Show power-law fit line.
+        Show the slope-one reference line 6 * mean_d * t. No curve is fitted
+        here and the estimated alpha is not used. The legacy legend says
+        "alpha=1 fit"; this is only a visual reference for anomalous diffusion.
     individual_alpha : float
         Transparency for individual curves.
     figsize : tuple[int, int]
@@ -313,7 +318,7 @@ class MSDPlotConfig(BaseModel):
     )
     show_fit: bool = Field(
         default=True,
-        description="Show power-law fit line",
+        description="Show slope-one reference line using mean D (not a fitted curve)",
     )
     individual_alpha: float = Field(default=0.3, ge=0, le=1)
     figsize: tuple[int, int] = Field(default=(8, 6))

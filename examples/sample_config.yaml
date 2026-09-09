@@ -56,13 +56,14 @@ tracking:
   # Useful for handling temporary detection failures
   memory: 2
 
-  # Adaptive search parameters (optional)
-  # Use when particles are densely packed
-  # adaptive_stop: 10.0
+  # Adaptive search parameters (optional; specify both together)
+  # adaptive_stop is a distance in scaled units, NOT a particle count or um.
+  # One scaled unit is min(voxel_size) = 0.2 um for this configuration.
+  # adaptive_stop: 0.5  # Stop distance = 0.1 um
   # adaptive_step: 0.9
 
 postprocess:
-  # Minimum track length in frames
+  # Minimum observed point count per track (missing frames do not count)
   # Remove short "stub" tracks that are likely noise
   min_track_length: 5
 
@@ -80,10 +81,10 @@ export:
   # Allow overwriting existing files
   overwrite: false
 
-# napari visualization settings (optional)
+# Stored napari preferences (optional; not applied by the pipeline or widgets)
 napari:
   image_name: Volume
   points_name: Detections
   tracks_name: Tracks
-  # Subset of frames to display (optional)
+  # Stored frame range only; filter image/point/track data explicitly to subset
   # frame_range: [0, 100]

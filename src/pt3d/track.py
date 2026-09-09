@@ -27,6 +27,8 @@ def link_detections(
     Uses trackpy.link_df with coordinate scaling to handle anisotropic
     voxel sizes. The search_range is specified in micrometers and
     automatically converted to scaled coordinate units.
+    adaptive_stop is forwarded unchanged in those scaled units; it is not
+    converted from micrometers.
 
     Parameters
     ----------

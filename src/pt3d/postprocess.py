@@ -27,7 +27,8 @@ def filter_stubs(
     tracks : pd.DataFrame
         DataFrame with 'particle' column
     min_length : int
-        Minimum number of frames for a valid track
+        Minimum number of observed points per track. Missing frames do not
+        count; min_length=1 keeps single-point tracks.
 
     Returns
     -------
@@ -157,7 +158,7 @@ def compute_track_stats(
     pd.DataFrame
         DataFrame with one row per track containing:
         - particle: track ID
-        - length: number of frames
+        - length: number of observed points (missing frames excluded)
         - duration: last_frame - first_frame
         - mean_velocity_um: average velocity in um/frame
         - max_velocity_um: maximum velocity in um/frame

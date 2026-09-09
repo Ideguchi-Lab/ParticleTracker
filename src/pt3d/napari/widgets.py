@@ -622,7 +622,10 @@ class TrackVisualizationWidget(QWidget):
                 break
 
     def _highlight_track(self) -> None:
-        """Highlight selected track ID."""
+        """Log the selected ID; individual-track highlighting is not implemented.
+
+        Selecting All restores the Tracks layer's visibility.
+        """
         if self._current_tracks is None:
             return
 
@@ -957,16 +960,19 @@ class Track3DVisualizationWidget(QWidget):
         detections: pd.DataFrame | None = None,
         voxel_size: VoxelSize | None = None,
     ) -> None:
-        """Set visualization data.
+        """Store tracking metadata and set the time-slider range.
+
+        Image, points, and tracks layers must already be added to the viewer.
+        This method does not create layers or update their data or scale.
 
         Parameters
         ----------
         image : np.ndarray | None
-            4D image data (T, Z, Y, X)
+            4D image data (T, Z, Y, X), used only to set the time-slider range
         tracks : pd.DataFrame | None
             Tracks DataFrame
         detections : pd.DataFrame | None
-            Detections DataFrame
+            Reserved argument; currently unused
         voxel_size : VoxelSize | None
             Physical voxel dimensions
         """
@@ -1180,7 +1186,12 @@ class Track3DVisualizationWidget(QWidget):
 
 
 class MainWidget(QWidget):
-    """Main widget combining detection, tracking, visualization, and export."""
+    """Combine detection, tracking, visualization, and track-statistics export.
+
+    Detection and tracking run synchronously. Full pipeline export of
+    detections, tracks, configuration, and run metadata is available through
+    pt3d.pipeline, not through this widget.
+    """
 
     def __init__(self, napari_viewer: napari.Viewer) -> None:
         super().__init__()

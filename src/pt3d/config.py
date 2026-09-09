@@ -47,9 +47,11 @@ class InputConfig(BaseModel):
     path : Path | None
         Path to input file (zarr, TIFF, or npy)
     axis_order : str
-        Axis order of input data (default: "tzyx")
+        Axis order for file inputs (default: "tzyx"). run_pipeline ignores
+        this setting for ndarray inputs, which must already be zyx or tzyx.
     dtype : str | None
-        Optional dtype to convert input data to
+        Stored metadata only; the pipeline does not convert the input dtype.
+        Convert arrays explicitly before passing them to the pipeline.
     voxel_size : VoxelSize
         Physical voxel dimensions (required for um-based tracking)
     """
@@ -168,11 +170,11 @@ class DetectionConfig(BaseModel):
         dy = self.diameter_um / voxel_size.y_um
         dx = self.diameter_um / voxel_size.x_um
 
-        # Round to nearest odd integer (minimum 1)
+        # Round to an integer (minimum 1), then increase even values by 1.
         def to_odd(v: float) -> int:
             rounded = max(1, round(v))
             if rounded % 2 == 0:
-                # Choose the nearest odd (round up)
+                # Increase the rounded even integer to the next odd integer.
                 return rounded + 1
             return rounded
 
@@ -182,7 +184,8 @@ class DetectionConfig(BaseModel):
 class TrackingConfig(BaseModel):
     """Tracking (linking) parameters for trackpy.
 
-    All distance parameters are in micrometers (um).
+    search_range_um is in micrometers. adaptive_stop is passed to trackpy
+    in scaled coordinate units: one unit is the smallest voxel dimension.
 
     Attributes
     ----------
@@ -191,14 +194,16 @@ class TrackingConfig(BaseModel):
     memory : int
         Number of frames a particle can disappear and reappear
     adaptive_stop : float | None
-        Stop adaptive search when subnetwork contains this many particles
+        Give up on an oversized subnet when the reduced search range is at
+        or below this distance, in scaled coordinate units. Convert a desired
+        threshold in um by dividing by min(voxel_size.as_tuple()).
     adaptive_step : float | None
         Reduce search_range by this factor in adaptive search
     """
 
     search_range_um: float = Field(gt=0, description="Maximum displacement per frame in um")
     memory: int = Field(default=0, ge=0, description="Frames to remember lost particles")
-    adaptive_stop: float | None = Field(default=None, description="Adaptive search stop threshold")
+    adaptive_stop: float | None = Field(default=None, description="Adaptive stop distance in scaled coordinate units")
     adaptive_step: float | None = Field(default=None, description="Adaptive search step factor")
 
     @model_validator(mode="after")
@@ -216,7 +221,7 @@ class PostprocessConfig(BaseModel):
     Attributes
     ----------
     min_track_length : int
-        Minimum number of frames for a valid track
+        Minimum number of observed points per track, excluding missing frames
     max_velocity_um : float | None
         Maximum allowed velocity in um/frame (outlier filter)
     """
@@ -244,7 +249,9 @@ class ExportConfig(BaseModel):
 
 
 class NapariConfig(BaseModel):
-    """napari visualization configuration.
+    """Stored napari preferences, not applied by the pipeline or widgets.
+
+    Set layer names and slice data explicitly when creating napari layers.
 
     Attributes
     ----------
@@ -255,13 +262,13 @@ class NapariConfig(BaseModel):
     tracks_name : str
         Name for the tracks layer
     frame_range : tuple[int, int] | None
-        Optional subset of frames to display
+        Stored frame range only; no automatic display filtering is performed
     """
 
     image_name: str = Field(default="Volume", description="Image layer name")
     points_name: str = Field(default="Detections", description="Points layer name")
     tracks_name: str = Field(default="Tracks", description="Tracks layer name")
-    frame_range: tuple[int, int] | None = Field(default=None, description="Frame range for subset display")
+    frame_range: tuple[int, int] | None = Field(default=None, description="Stored frame range; not applied to display")
 
 
 class Volume3DConfig(BaseModel):
@@ -280,7 +287,7 @@ class Volume3DConfig(BaseModel):
     opacity : float
         Layer opacity (0-1)
     iso_threshold : float
-        Threshold for iso rendering mode (0-1, relative to data range)
+        Threshold for iso rendering mode (0-1, relative to the contrast limits)
     colormap : str
         Colormap name for volume rendering
     """
@@ -308,7 +315,7 @@ class Track3DConfig(BaseModel):
     tail_length : int
         Number of frames to show in track trail
     show_current_position : bool
-        Highlight current particle positions
+        Reserved setting; currently has no effect on rendering
     """
 
     colormap: str = Field(default="turbo", description="Track colormap")
@@ -316,7 +323,7 @@ class Track3DConfig(BaseModel):
         default="track_id", description="Property for track coloring"
     )
     tail_length: int = Field(default=10, ge=0, description="Trail length in frames")
-    show_current_position: bool = Field(default=True, description="Highlight current positions")
+    show_current_position: bool = Field(default=True, description="Reserved; current-position highlighting is not applied")
 
 
 class Points3DConfig(BaseModel):
@@ -331,13 +338,13 @@ class Points3DConfig(BaseModel):
     opacity : float
         Point opacity (0-1)
     show_current_frame_only : bool
-        Show only points from current frame
+        Reserved setting; currently has no effect on rendering
     """
 
     size: float = Field(default=5.0, ge=1, description="Point size")
     face_color: str = Field(default="yellow", description="Point face color")
     opacity: float = Field(default=0.8, ge=0, le=1, description="Point opacity")
-    show_current_frame_only: bool = Field(default=True, description="Show current frame only")
+    show_current_frame_only: bool = Field(default=True, description="Reserved; frame filtering is not applied")
 
 
 class PipelineConfig(BaseModel):

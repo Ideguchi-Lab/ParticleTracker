@@ -48,8 +48,9 @@ class DiffusionConfig(BaseModel):
     Attributes
     ----------
     diffusion_coefficient : float | tuple[float, float, float]
-        Diffusion coefficient D in um^2/s. Can be isotropic (float) or
-        anisotropic (Dz, Dy, Dx).
+        Generalized diffusion coefficient D in um^2/s^(2H), where
+        H = hurst_exponent. Can be isotropic (float) or anisotropic
+        (Dz, Dy, Dx). Units reduce to um^2/s for H=0.5.
     hurst_exponent : float
         Hurst exponent H controlling diffusion type:
         - H = 0.5: Normal Brownian motion (MSD ~ t)
@@ -111,7 +112,9 @@ class BrownianSimulationConfig(BaseModel):
         List of particle population configurations. Multiple populations
         allow mixing different diffusion types in the same simulation.
     boundary_mode : Literal["reflective", "periodic", "absorbing"]
-        Boundary condition type.
+        Coordinate reflection, periodic wrapping, or per-frame clipping
+        ("absorbing"). Clipping does not keep a particle at the boundary
+        at subsequent times; see apply_boundary_conditions.
     noise_level : float
         Gaussian noise standard deviation to add to volumes.
     seed : int | None

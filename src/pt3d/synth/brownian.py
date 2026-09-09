@@ -172,7 +172,8 @@ def generate_fbm_trajectory_3d(
     hurst_exponent : float
         Hurst exponent H (same for all axes).
     diffusion_coefficients : tuple[float, float, float] | float
-        Diffusion coefficients (Dz, Dy, Dx) in um^2/s.
+        Generalized coefficients (Dz, Dy, Dx) in um^2/s^(2H), where
+        H = hurst_exponent. Each axis has MSD = 2 * D * t^(2H).
         If float, uses isotropic diffusion.
     dt : float
         Time step in seconds.
@@ -232,7 +233,9 @@ def apply_boundary_conditions(
         Boundary condition type:
         - "reflective": Particles bounce back at boundaries
         - "periodic": Particles wrap around
-        - "absorbing": Particles stick at boundaries
+        - "absorbing": Clip each coordinate independently at each time point;
+          particles may return to the interior at later times. This does not
+          implement permanent absorption after the first boundary crossing.
 
     Returns
     -------
@@ -305,7 +308,9 @@ def compute_msd(
     Returns
     -------
     NDArray[np.float64]
-        MSD values for each time lag, shape (max_lag + 1,).
+        MSD values for each time lag, shape (min(max_lag, n_steps - 1) + 1,)
+        after resolving the default max_lag. Averages over particles and
+        time origins; NaN values are not excluded.
         msd[0] is always 0 (lag 0).
 
     Examples
@@ -346,8 +351,9 @@ def fit_diffusion_exponent(
     """Fit MSD data to extract diffusion exponent alpha.
 
     Fits MSD = A * t^alpha using log-log linear regression.
-    For normal diffusion (alpha=1), A = 2*n_dim*D where n_dim is
-    the number of spatial dimensions.
+    The returned coefficient always uses the 3D convention D = A / 6.
+    There is no dimension parameter; do not interpret it as a 1D or 2D
+    coefficient when fitting component-wise MSDs.
 
     Parameters
     ----------
@@ -356,7 +362,9 @@ def fit_diffusion_exponent(
     dt : float
         Time step between frames.
     fit_range : tuple[int, int] | None
-        Range of time lags to fit (start, end). If None, uses (1, len(msd)//2).
+        Range of lag indices [start, end), excluding end. If None, uses
+        (1, max(2, len(msd)//2)). Start is clamped to at least 1 and end
+        to at most len(msd). Nonpositive and NaN MSD values are excluded.
 
     Returns
     -------
@@ -434,7 +442,8 @@ def generate_brownian_particles(
     n_particles : int
         Number of particles to simulate.
     diffusion_coefficient : tuple[float, float, float] | float
-        Diffusion coefficient D in um^2/s for each axis (Dz, Dy, Dx).
+        Generalized coefficient D in um^2/s^(2H) for each axis (Dz, Dy, Dx),
+        where H = hurst_exponent. Units are um^2/s only for H=0.5.
         If float, uses isotropic diffusion.
     dt : float
         Time step between frames in seconds. Default is 1.0.
@@ -454,7 +463,9 @@ def generate_brownian_particles(
     noise_level : float
         Gaussian noise standard deviation. Default is 0.1.
     boundary_mode : Literal["reflective", "periodic", "absorbing"]
-        Boundary condition type. Default is "reflective".
+        Boundary condition type. Default is "reflective". The "absorbing"
+        option clips coordinates independently at each time point and does
+        not permanently retain a particle at the boundary.
     seed : int | None
         Random seed for reproducibility.
 
@@ -581,7 +592,7 @@ def generate_brownian_particles_from_config(
     tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.int64]]
         (volumes, positions, population_labels)
         volumes: shape (t, z, y, x) - synthetic image volumes
-        positions: shape (total_particles, t, 3) - ground truth positions [z, y, x]
+        positions: shape (total_particles, t, 3) - ground truth [z, y, x] in pixels
         population_labels: shape (total_particles,) - population index for each particle
 
     Examples

@@ -116,7 +116,7 @@ def demo_batch_detection() -> None:
         print(f"  Frame {frame}: {count} particles")
 
     # Detect in subset
-    print("\nRunning detection on frames 2-5 only...")
+    print("\nRunning detection on frames 2-4 only (end=5 excluded)...")
     detections_subset = detect_batch(frames, config, frame_range=(2, 5))
     print(f"Detections in subset: {len(detections_subset)}")
 

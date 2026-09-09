@@ -25,7 +25,8 @@ def to_napari_points(
     detections : pd.DataFrame
         DataFrame with columns [frame, z, y, x] or [z, y, x]
     include_frame : bool
-        Whether to include frame dimension (for 4D data)
+        Include frame when the column exists. Nonempty input without frame
+        returns three columns even if True; empty input returns four if True.
 
     Returns
     -------
@@ -116,7 +117,7 @@ def points_properties_from_detections(
         Detection DataFrame
     property_columns : list[str] | None
         Columns to include as properties.
-        If None, uses ["mass", "size"] if available.
+        If None, uses available columns from ["mass", "size", "signal", "ecc"].
 
     Returns
     -------
@@ -194,7 +195,9 @@ def tracks_visualization_properties(
         Optional track statistics from compute_track_stats()
     color_by : str
         Property to use for coloring: "track_id", "time", "length",
-        "velocity", or "displacement" (latter two require track_stats)
+        "velocity", or "displacement". The last three require track_stats;
+        unavailable properties fall back to "track_id". Velocity is the
+        per-track mean velocity in um/frame, not instantaneous velocity.
 
     Returns
     -------
@@ -360,7 +363,7 @@ def configure_3d_tracks_layer(
     layer : napari.layers.Tracks
         napari tracks layer to configure
     config : Track3DConfig
-        Track visualization configuration
+        Track visualization configuration. show_current_position is not used.
     tracks : pd.DataFrame | None
         Tracks DataFrame for property generation
     track_stats : pd.DataFrame | None
@@ -390,7 +393,7 @@ def configure_3d_points_layer(
     layer : napari.layers.Points
         napari points layer to configure
     config : Points3DConfig
-        Points visualization configuration
+        Points visualization configuration. show_current_frame_only is not used.
     """
     layer.size = config.size
     layer.face_color = config.face_color

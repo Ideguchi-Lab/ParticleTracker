@@ -6,12 +6,9 @@ class Pt3dError(Exception):
 
 
 class ConfigError(Pt3dError):
-    """Exception raised for configuration errors.
+    """Reserved configuration exception; not raised by current config models.
 
-    Examples:
-        - Diameter values are not odd integers
-        - Invalid axis order specification
-        - Missing required configuration fields
+    Pydantic model validation raises pydantic.ValidationError instead.
     """
 
 
@@ -20,7 +17,7 @@ class DataError(Pt3dError):
 
     Examples:
         - Incorrect array dimensions
-        - Invalid data types
+        - Unsupported file formats or missing files
         - Missing required axes
     """
 
@@ -31,5 +28,7 @@ class ProcessingError(Pt3dError):
     Examples:
         - Detection failed for a frame
         - Tracking failed due to algorithm errors
-        - File I/O errors during processing
+        - Export refused because a file exists and overwrite is disabled
+
+    Native I/O exceptions are not all wrapped in this exception.
     """

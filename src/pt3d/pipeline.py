@@ -93,9 +93,12 @@ def run_pipeline(
     Parameters
     ----------
     data : NDArray[np.floating] | Path | str
-        Input data as array or path to file
+        Array in (t, z, y, x) or (z, y, x) order, or a path to a file.
+        Only file inputs use config.input.axis_order for normalization.
+        For arrays in another order, call pt3d.io.load_array first.
     config : PipelineConfig
-        Pipeline configuration
+        Pipeline configuration. input.dtype and napari settings are stored
+        but not applied. Convert dtype explicitly before calling.
 
     Returns
     -------
@@ -105,7 +108,9 @@ def run_pipeline(
     Raises
     ------
     ProcessingError
-        If any step fails
+        If dimension validation, detection, linking, or postprocessing fails.
+        Loading errors may propagate as DataError or native I/O exceptions;
+        export errors may also propagate without wrapping.
     """
     start_time = datetime.now(timezone.utc)
     logger.info("Starting tracking pipeline")
@@ -194,7 +199,9 @@ def run_pipeline_streaming(
     frame_iterator : Iterable[NDArray[np.floating]]
         Iterator or generator yielding 3D volumes with shape (z, y, x).
     config : PipelineConfig
-        Pipeline configuration
+        Pipeline configuration. Input axis_order/dtype and napari preferences
+        are not applied; yielded volumes must already have the desired dtype
+        and (z, y, x) axis order.
     n_frames : int | None
         Number of frames (for logging). If None, not reported.
 
@@ -206,7 +213,8 @@ def run_pipeline_streaming(
     Raises
     ------
     ProcessingError
-        If any step fails
+        If detection, linking, or postprocessing fails. Export errors may
+        propagate without wrapping.
 
     Notes
     -----

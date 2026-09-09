@@ -12,6 +12,12 @@ This will:
 2. Run tracking pipeline
 3. Analyze diffusion (MSD, D, alpha)
 4. Create visualization plots
+
+Fitted D is a generalized coefficient in um^2/s^alpha, even though the
+simulation uses normal diffusion. Alpha is fitted freely, so the displayed
+relative difference from the normal-diffusion input D is a numerical diagnostic,
+not a comparison of identically dimensioned coefficients when alpha differs from 1.
+The default MSD plot shows an alpha=1 reference line, not the fitted alpha curve.
 """
 
 from __future__ import annotations
@@ -113,17 +119,17 @@ def main():
     print("=" * 60)
     summary = analysis.summary()
     print(f"  Particles analyzed: {summary['n_particles']}")
-    print(f"  Mean D: {summary['D_mean']:.4f} +/- {summary['D_std']:.4f} um^2/s")
-    print(f"  Median D: {summary['D_median']:.4f} um^2/s")
+    print(f"  Mean D: {summary['D_mean']:.4f} +/- {summary['D_std']:.4f} um^2/s^alpha")
+    print(f"  Median D: {summary['D_median']:.4f} um^2/s^alpha")
     print(f"  Mean alpha: {summary['alpha_mean']:.2f} +/- {summary['alpha_std']:.2f}")
     print(f"  Median alpha: {summary['alpha_median']:.2f}")
 
     # Compare with ground truth
     print("\n  Comparison with ground truth:")
     print(f"    True D = {d_true} um^2/s")
-    print(f"    Estimated D = {summary['D_mean']:.4f} um^2/s")
+    print(f"    Estimated D = {summary['D_mean']:.4f} um^2/s^alpha (alpha fitted freely)")
     error_pct = abs(summary["D_mean"] - d_true) / d_true * 100
-    print(f"    Error: {error_pct:.1f}%")
+    print(f"    Relative numerical difference from input D: {error_pct:.1f}%")
 
     # Save per-particle results
     results_path = output_dir / "diffusion_results.csv"

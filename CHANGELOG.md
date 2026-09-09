@@ -50,9 +50,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Aligned documentation and docstrings with current input handling, adaptive
+  search units, detection schemas, observed track lengths, and unused GUI settings
+- Documented exact MSD fitting indices, the slope-one plotting reference,
+  generalized diffusion units, and per-frame clipping for the absorbing option
+- Replaced the original design draft with a reference to the implemented API
+- Corrected explanatory unit labels in the diffusion demos
 - Velocity calculation now properly divides by frame difference, correctly handling
   gaps when particles temporarily disappear (memory parameter)
-- Unified unit notation across codebase (ASCII `um` and `um^2/s` in code/docs)
+- Clarified physical units: `um`, `um/frame`, and generalized `um^2/s^alpha`
 - Fixed `voxel_size=None` documentation in `generate_brownian_particles`
 - Fixed `HistogramConfig` docstring (`log_scale_d` not `log_scale_D`)
 - Fixed `tracks_visualization_properties` docstring to include all color_by options

@@ -210,3 +210,6 @@ __marimo__/
 tmp/*
 output/
 uv.lock
+
+# Preserve the former submodule's local checkout without publishing it.
+/submodules/ilabvis/

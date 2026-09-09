@@ -5,8 +5,11 @@ Brownian Motion Simulation Demo
 This script demonstrates how to generate synthetic particle data
 with various diffusion behaviors:
 - Normal Brownian motion (H=0.5, α=1)
-- Subdiffusion (H<0.5, α<1) - e.g., confined motion
-- Superdiffusion (H>0.5, α>1) - e.g., directed motion
+- Subdiffusion (H<0.5, α<1) - antipersistent FBM
+- Superdiffusion (H>0.5, α>1) - persistent FBM
+
+The generalized diffusion coefficient has units um^2/s^(2H).
+Boundary handling can change the observed MSD from the unbounded FBM power law.
 
 Output files are saved to ./output/brownian/
 """
@@ -208,7 +211,7 @@ def main() -> None:
         print(f"    Particles: {n}")
         print(f"    Hurst exponent (H): {hurst}")
         print(f"    Expected α = 2H: {2 * hurst:.2f}")
-        print(f"    Diffusion coefficient (D): {d_coeff} μm²/s")
+        print(f"    Generalized diffusion coefficient (D): {d_coeff} um^2/s^(2H)")
 
     print("\nDone!")
 
