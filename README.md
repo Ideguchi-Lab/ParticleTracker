@@ -117,4 +117,4 @@ See the [examples/](examples/) directory for working code:
 
 ## License
 
-Apache License 2.0
+[MIT License](LICENSE) — Copyright (c) 2026 Ideguchi-lab
