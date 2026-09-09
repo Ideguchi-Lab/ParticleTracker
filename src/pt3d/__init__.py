@@ -17,7 +17,7 @@ from pt3d.detect import detect_batch, detect_frame, detect_streaming
 from pt3d.pipeline import PipelineResult, run_pipeline, run_pipeline_streaming
 from pt3d.track import link_detections
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 __all__ = [
     # Config

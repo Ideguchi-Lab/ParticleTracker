@@ -1,0 +1,47 @@
+# Citation File Format: https://citation-file-format.github.io/
+cff-version: 1.2.0
+message: "If you use ParticleTracker in your research, please cite this software."
+type: software
+title: "ParticleTracker (pt3d): 3D+t Particle Tracking Library"
+
+authors:
+  - family-names: "Fukushima"
+    given-names: "Masato"
+  - family-names: "Ideguchi"
+    given-names: "Takuro"
+
+version: "1.0.0"  # Keep in sync with the version being cited.
+license: MIT
+repository-code: "https://github.com/Ideguchi-Lab/ParticleTracker"
+url: "https://github.com/Ideguchi-Lab/ParticleTracker"
+abstract: >-
+  A Python library for 3D+t particle detection and tracking in microscopy data,
+  with trackpy-based linking, diffusion analysis, and napari visualization.
+keywords:
+  - particle tracking
+  - microscopy
+  - anomalous diffusion
+  - optical diffraction tomography
+
+# Optional software release metadata. Replace placeholders before uncommenting.
+# Use the software archive DOI here, not the paper DOI.
+# date-released: "YYYY-MM-DD"  # Set to the actual release date when publishing.
+# doi: "10.5281/zenodo.REPLACE_WITH_SOFTWARE_RECORD_ID"
+
+# Optional: prefer the paper as the citation displayed by GitHub.
+# Complete the paper's author list in publication order and its bibliographic
+# details before uncommenting this block. Omit optional fields that are unknown.
+# Also update message above to ask users to cite the paper.
+# preferred-citation:
+#   type: article
+#   title: >-
+#     Video-rate volumetric chemical imaging via mid-infrared photothermal
+#     optical diffraction tomography
+#   authors:
+#     - family-names: "REPLACE_WITH_FAMILY_NAME"
+#       given-names: "REPLACE_WITH_GIVEN_NAMES"
+#   journal: "REPLACE_WITH_JOURNAL"
+#   year: YYYY
+#   volume: "REPLACE_WITH_VOLUME"
+#   start: "REPLACE_WITH_FIRST_PAGE_OR_ARTICLE_NUMBER"
+#   doi: "REPLACE_WITH_PAPER_DOI"

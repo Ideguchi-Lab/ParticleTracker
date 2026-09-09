@@ -4,13 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pt3d"
-version = "0.1.0"
+version = "1.0.0"
 description = "3D+t particle tracking library with trackpy and napari"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
@@ -33,6 +33,11 @@ dependencies = [
     "scikit-image>=0.21",
     "pyarrow>=14.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/Ideguchi-Lab/ParticleTracker"
+Documentation = "https://github.com/Ideguchi-Lab/ParticleTracker/blob/main/README.md"
+Issues = "https://github.com/Ideguchi-Lab/ParticleTracker/issues"
 
 [project.optional-dependencies]
 napari = [

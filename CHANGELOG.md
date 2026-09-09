@@ -7,8 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0]
+
+First stable public release. The release date will be recorded when published.
+
 ### Added
 
+- Streaming detection and pipeline APIs for processing image volumes one frame at a time
+- Diffusion analysis with gap-aware MSD, generalized diffusion coefficients,
+  per-particle exponents, and matplotlib visualization
+- Software citation metadata in `CITATION.cff`, with a commented paper citation template
 - Interactive 3D visualization widget (`Track3DVisualizationWidget`)
   - 3D display mode toggle for napari viewer
   - Volume rendering settings (MIP, attenuated MIP, translucent, ISO)
@@ -47,6 +55,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Alternative to pixel-based `diameter` parameter
   - Automatically converted to pixels using `voxel_size`
   - Enables consistent physical-unit configuration
+
+### Changed
+
+- Changed the project license from Apache-2.0 to MIT, with copyright held by Ideguchi-lab
+- Updated package and runtime versions to 1.0.0 and marked the package as stable
+
+### Removed
+
+- Private ilabvis submodule and its dedicated visualization demo; the core
+  tracking workflow and napari examples do not require this dependency
 
 ### Fixed
 
