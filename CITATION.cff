@@ -11,6 +11,7 @@ authors:
     given-names: "Takuro"
 
 version: "1.0.0"  # Keep in sync with the version being cited.
+date-released: "2026-09-09"
 license: MIT
 repository-code: "https://github.com/Ideguchi-Lab/ParticleTracker"
 url: "https://github.com/Ideguchi-Lab/ParticleTracker"
@@ -25,7 +26,6 @@ keywords:
 
 # Optional software release metadata. Replace placeholders before uncommenting.
 # Use the software archive DOI here, not the paper DOI.
-# date-released: "YYYY-MM-DD"  # Set to the actual release date when publishing.
 # doi: "10.5281/zenodo.REPLACE_WITH_SOFTWARE_RECORD_ID"
 
 # Optional: prefer the paper as the citation displayed by GitHub.

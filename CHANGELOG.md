@@ -7,9 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0]
+## [1.0.0] - 2026-09-09
 
-First stable public release. The release date will be recorded when published.
+First stable public release.
 
 ### Added
 
